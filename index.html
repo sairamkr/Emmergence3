@@ -753,9 +753,8 @@ const stamp = () => {}; // no footprints here
 const FR = { x: 0, y: 0, w: 1, h: 1, kind: "cell", grow: 0, land: 0 };
 const LAND_B = [70 / 1552, 60 / 1552, 72 / 1552, 74 / 1552]; // red border widths (top, right, bottom, left) as shares of the inner width
 function frameTarget(kind) {
-  // on a phone the picture is 4:3 (four wide, three tall), as large as fits and centred, with black round it; elsewhere, full screen
-  if (Math.min(innerWidth, innerHeight) < 600) { const W = innerWidth, H = innerHeight, w = Math.min(W, H * 4 / 3), h = w * 3 / 4; return { x: (W - w) / 2, y: (H - h) / 2, w, h }; }
-  return { x: 0, y: 0, w: innerWidth, h: innerHeight };
+  // the shape of the card on the site's page: 3:2 on a laptop or desktop, 2:3 (tall) on a phone. As large as fits, centred
+  { const W = innerWidth, H = innerHeight, A = Math.min(W, H) < 600 ? (H >= W ? 2 / 3 : 3 / 2) : 3 / 2, w = Math.min(W, H * A), h = w / A; return { x: (W - w) / 2, y: (H - h) / 2, w, h }; }
   const W = innerWidth, H = innerHeight, m = 0.045 * Math.min(W, H) + 6;
   const fit = (a, bw = 0, bh = 0) => { let w = Math.min(W - 2 * m, (H - 2 * m) * a); w = Math.min(w, (W - 2 * m) / (1 + bw)); let h = w / a; if (h * (1 + bh) > H - 2 * m) { h = (H - 2 * m) / (1 + bh); w = h * a; } return { x: (W - w) / 2, y: (H - h) / 2, w, h }; };
   if (kind === "land") { const r = fit(1552 / 1242, LAND_B[1] + LAND_B[3], (LAND_B[0] + LAND_B[2]) * 1552 / 1242); return r; }
@@ -2564,6 +2563,13 @@ function updateMicro(dt) {
   // the shader works in screen points; the culture lives inside the frame's window
   const SW = innerWidth, SH = innerHeight, X0 = FR.x, Y0 = FR.y, W = FR.w, H = FR.h, cx = X0 + W / 2, cy = Y0 + H / 2, U0 = Math.min(W, H), u = microMat.uniforms;
   micro.t += dt; u.tm.value += dt;
+  // if the window changed shape or size, carry the tissue with it: every cell moves and scales with the frame
+  const lf = micro.lastFR;
+  if (lf && (lf.x !== FR.x || lf.y !== FR.y || lf.w !== FR.w || lf.h !== FR.h)) {
+    const sx = FR.w / lf.w, sy = FR.h / lf.h, sr = Math.min(sx, sy), ocx = lf.x + lf.w / 2, ocy = lf.y + lf.h / 2;
+    for (const c of micro.cells) { for (const [a, b] of [["x", "y"], ["tx", "ty"]]) { c[a] = cx + (c[a] - ocx) * sx; c[b] = cy + (c[b] - ocy) * sy; } c.r *= sr; c.rt *= sr; c.w = (c.w || 0) * sr; }
+  }
+  micro.lastFR = { x: FR.x, y: FR.y, w: FR.w, h: FR.h };
   u.res.value.set(SW, SH); u.win.value.set(X0, Y0, W, H);
   if (MAP_STAGES.includes(micro.phase)) return updateMapStage(dt); u.dpr.value = renderer.getPixelRatio(); u.seed.value = micro.seed; u.centre.value.set(cx, cy);
   u.cellR.value = micro.cells.length ? micro.cells.reduce((t, c) => t + c.r, 0) / micro.cells.length : U0 * 0.24; // new tissue matches the culture's cells
