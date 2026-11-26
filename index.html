@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#050403">
+<meta name="theme-color" content="#8a8a8a">
 <title>Squish</title>
-<style>html,body{margin:0;height:100%;background:#050403}</style>
+<style>html,body{margin:0;height:100%;background:#8a8a8a}</style>
 </head>
 <body>
 
 <meta name="claude:viewport-fit-sides" content="cover">
 <!-- Creature paper: forty square fragments cut from the maps in the author's own MapTextures2 collection. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Noto+Serif:ital,wght@1,700&family=Source+Sans+3:wght@500&display=swap">
 <style>
 /* Layout: one full-screen 3D sheet of graph paper; cells and creatures in WebGL, pencil notes on a canvas above, two pencilled buttons in the corner.
    A single light look on purpose: it is a sheet of paper under a lamp. */
@@ -28,6 +28,13 @@ body {
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
 }
 #stage { position: fixed; inset: 0; }
+/* the site's page round the piece: a grey ground, a white Back button and the kind of piece, as on the other pages */
+html, body { background: #8a8a8a !important; }
+#site { position: fixed; z-index: 3; display: flex; gap: 10px 46px; align-items: center; }
+#site.side { flex-direction: column; align-items: flex-end; gap: 22px; }
+#back { font: italic 700 21px/1 "Noto Serif", Georgia, serif; color: #4b8fc9; background: #fff; padding: 9px 18px 10px; text-decoration: none; }
+#back:hover { color: #2f6fa6; } #back:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+#kind { font: 500 11px/1 "Source Sans 3", "Helvetica Neue", Arial, sans-serif; letter-spacing: .24em; text-transform: uppercase; color: #2e2e2e; }
 body.dark #hint { color: #f4efe6; text-shadow: 0 1px 3px #000, 0 0 10px rgba(0,0,0,.8); } body.dark .tools button { text-shadow: 0 1px 3px #000; } body.dark .tools button { color: #b9b2a6; } body.dark .tools button:hover { color: #fff; }
 #win, #ferns { display: none !important; }
 /* the picture sits in a window cut in a mount; the window changes shape as the story goes on */
@@ -114,6 +121,7 @@ body.dark #hint { color: #f4efe6; text-shadow: 0 1px 3px #000, 0 0 10px rgba(0,0
 </style>
 
 <div id="stage"></div>
+<nav id="site" aria-label="Site"><a id="back" href="../../index.html">Back</a><span id="kind">Postcard</span></nav>
 <canvas id="ink" aria-hidden="true"></canvas>
 <div id="win" aria-hidden="true"><div id="arch"></div></div>
 <div id="ferns" aria-hidden="true"></div>
@@ -753,8 +761,11 @@ const stamp = () => {}; // no footprints here
 const FR = { x: 0, y: 0, w: 1, h: 1, kind: "cell", grow: 0, land: 0 };
 const LAND_B = [70 / 1552, 60 / 1552, 72 / 1552, 74 / 1552]; // red border widths (top, right, bottom, left) as shares of the inner width
 function frameTarget(kind) {
-  // the shape of the card on the site's page: 3:2 on a laptop or desktop, 2:3 (tall) on a phone. As large as fits, centred
-  { const W = innerWidth, H = innerHeight, A = Math.min(W, H) < 600 ? (H >= W ? 2 / 3 : 3 / 2) : 3 / 2, w = Math.min(W, H * A), h = w / A; return { x: (W - w) / 2, y: (H - h) / 2, w, h }; }
+  // the card on the site's page: 3:2 on a laptop or desktop, with the Back button in the left margin; 2:3 (tall) on a phone held
+  // upright, with Back above it. As large as fits in what is left of the page, centred there
+  { const W = innerWidth, H = innerHeight, phone = Math.min(W, H) < 600, tall = phone && H >= W, A = tall ? 2 / 3 : 3 / 2;
+    const mx = tall ? 8 : phone ? 120 : Math.max(150, W * 0.113), top = tall ? 76 : phone ? 12 : Math.max(24, H * 0.12), bot = tall ? 20 : phone ? 12 : Math.max(24, H * 0.085);
+    const aw = W - 2 * mx, ah = H - top - bot, w = Math.min(aw, ah * A), h = w / A; return { x: (W - w) / 2, y: top + (ah - h) / 2, w, h }; }
   const W = innerWidth, H = innerHeight, m = 0.045 * Math.min(W, H) + 6;
   const fit = (a, bw = 0, bh = 0) => { let w = Math.min(W - 2 * m, (H - 2 * m) * a); w = Math.min(w, (W - 2 * m) / (1 + bw)); let h = w / a; if (h * (1 + bh) > H - 2 * m) { h = (H - 2 * m) / (1 + bh); w = h * a; } return { x: (W - w) / 2, y: (H - h) / 2, w, h }; };
   if (kind === "land") { const r = fit(1552 / 1242, LAND_B[1] + LAND_B[3], (LAND_B[0] + LAND_B[2]) * 1552 / 1242); return r; }
@@ -763,6 +774,8 @@ function frameTarget(kind) {
   if (kind === "cell") { const g = FR.grow, f = { x: m * 0.5, y: m * 0.5, w: W - m, h: H - m }; return { x: p.x + (f.x - p.x) * g, y: p.y + (f.y - p.y) * g, w: p.w + (f.w - p.w) * g, h: p.h + (f.h - p.h) * g }; }
   return p;
 }
+const siteEl = document.getElementById("site");
+document.getElementById("back").addEventListener("click", e => { if (history.length > 1 && document.referrer) { e.preventDefault(); history.back(); } });
 const winEl = document.getElementById("win"), archEl = document.getElementById("arch"), fernEl = document.getElementById("ferns");
 function updateFrame(dt, snap) {
   const t = frameTarget(FR.kind), k = snap ? 1 : 1 - Math.exp(-dt * 2.6);
@@ -770,6 +783,11 @@ function updateFrame(dt, snap) {
   FR.land += ((FR.kind === "land" ? 1 : 0) - FR.land) * (snap ? 1 : 1 - Math.exp(-dt * 2));
   const b = LAND_B.map(v => v * FR.w * FR.land); // the red border grows out round the picture as it turns landscape
   winEl.classList.toggle("land", FR.land > 0.01);
+  { // the Back button and the label: beside the card on a wide screen, above it on a tall one
+    const tall = FR.h > FR.w; siteEl.classList.toggle("side", !tall);
+    if (tall) Object.assign(siteEl.style, { left: FR.x + 6 + "px", top: Math.max(8, FR.y - 56) + "px", right: "", transform: "" });
+    else Object.assign(siteEl.style, { left: Math.max(8, FR.x - 32) + "px", top: FR.y + 2 + "px", transform: "translateX(-100%)" });
+  }
   Object.assign(fernEl.style, { left: FR.x + "px", top: FR.y + FR.h * 0.78 + "px", width: FR.w + "px", height: FR.h * 0.22 + "px", opacity: FR.land.toFixed(3) });
   Object.assign(winEl.style, { left: FR.x - b[3] + "px", top: FR.y - b[0] + "px", width: FR.w + b[1] + b[3] + "px", height: FR.h + b[0] + b[2] + "px", borderWidth: b.map(v => v.toFixed(1) + "px").join(" ") });
 }
@@ -903,8 +921,16 @@ function audio() {
       const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     }
     if (AC.state === "suspended") AC.resume();
+    if (!KNOCKS.loading) loadKnocks();
   } catch (e) { AC = null; }
   return AC;
+}
+// five glass knocks, taking turns in order for each pop
+const KNOCK_FILES = ["knock1.mp3", "knock2.mp3", "knock3.mp3", "knock4.mp3", "knock5.mp3"];
+const KNOCKS = { bufs: KNOCK_FILES.map(() => null), next: 0, loading: false };
+function loadKnocks() {
+  KNOCKS.loading = true;
+  KNOCK_FILES.forEach((f, i) => fetch(f).then(r => r.arrayBuffer()).then(b => new Promise((res, rej) => AC.decodeAudioData(b, res, rej))).then(buf => { KNOCKS.bufs[i] = buf; }).catch(() => {}));
 }
 function squeezeStart(o) {
   return; // the sliding noise under a squeeze is switched off
@@ -921,9 +947,19 @@ function squeezeUpdate(o) {
 }
 function squeezeStop(o) { if (!o.snd || !AC) return; const s = o.snd, t = AC.currentTime; o.snd = null; s.g.gain.setTargetAtTime(0, t, 0.04); s.src.stop(t + 0.3); }
 function pop() {
-  const A = audio(); if (!A) return; const t = A.currentTime, o = A.createOscillator(), g = A.createGain();
+  const A = audio(); if (!A) return;
+  // a glass knock picked at random (never the same one twice running), each a touch late, quieter or louder, higher or lower
+  // than the last, so the knocks of a chain fall loosely, out of step, rather than in a tick-tock
+  const ready = KNOCKS.bufs.map((b, i) => b ? i : -1).filter(i => i >= 0 && i !== KNOCKS.last);
+  if (ready.length) {
+    const i = ready[Math.floor(Math.random() * ready.length)]; KNOCKS.last = i;
+    const src = A.createBufferSource(), g = A.createGain(); src.buffer = KNOCKS.bufs[i];
+    src.playbackRate.value = 0.9 + Math.random() * 0.18; g.gain.value = 0.18 + Math.random() * 0.14;
+    src.connect(g).connect(A.destination); src.start(A.currentTime + Math.random() * 0.16); return;
+  }
+  const t = A.currentTime, o = A.createOscillator(), g = A.createGain();
   o.frequency.setValueAtTime(560, t); o.frequency.exponentialRampToValueAtTime(100, t + 0.22);
-  g.gain.setValueAtTime(0.3, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+  g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
   o.connect(g).connect(A.destination); o.start(t); o.stop(t + 0.3);
 }
 function rustle(delay = 0.25) { // paper unfolding
@@ -2328,6 +2364,7 @@ const microMat = new THREE.ShaderMaterial({
     void main(){
       vec2 sp = vec2(gl_FragCoord.x / dpr, res.y - gl_FragCoord.y / dpr);   // this pixel, in screen points
       vec4 cellB = vec4(0.0); float cellIn = 0.0, cellWall = 0.0;
+      if (mode == 1 && (sp.x < win.x || sp.y < win.y || sp.x > win.x + win.z || sp.y > win.y + win.w)) { gl_FragColor = vec4(vec3(0.541), 1.0); return; } // the page round the card
       if (mode == 2) {
         // the map of Delhi. A square is cut from it with a dashed scissor line; the piece lifts, turns and folds away to
         // nothing; then the whole map slides down out of the frame
@@ -2469,7 +2506,7 @@ const toTissue = (x, y) => { const cx = FR.x + FR.w / 2, cy = FR.y + FR.h / 2, z
 // the area the tissue spreads over: the window, as large as it will be once the view has pulled back
 function tissueRect() { const z = micro.cells.length > 1 ? ZOOM_OUT : 1, cx = FR.x + FR.w / 2, cy = FR.y + FR.h / 2; return { x: cx - FR.w / 2 / z, y: cy - FR.h / 2 / z, w: FR.w / z, h: FR.h / z }; }
 function seedTiling() { // one cell to begin with: the map, filling the screen
-  micro.zk = 1; micro.white = 0; micro.torn = 1; micro.taps = 0; micro.autoT = 0.6; document.body.classList.add("dark");
+  micro.zk = 1; micro.white = 0; micro.torn = 1; micro.pending = []; micro.chains = []; document.body.classList.add("dark");
   micro.cells.length = 0; micro.bigTurn = Math.floor(Math.random() * 2); const c0 = microCell(FR.x + FR.w / 2, FR.y + FR.h / 2, 1, 1, 2); c0.pu = 0.47; c0.pv = 0.6; fitRadii(); // the first shows the walled city
 }
 function seedTilingMany() {
@@ -2520,7 +2557,7 @@ function fitRadii() {
 }
 // a map cell divides: two map cells where it was, and the nearest jali cell is taken into the map, so the map spreads
 function mapDivide(c, a = rnd(0, TAU)) {
-  const dx = Math.cos(a), dy = Math.sin(a), r = c.r, i = micro.cells.indexOf(c);
+  const dx = Math.cos(a), dy = Math.sin(a), r = c.r, i = micro.cells.indexOf(c); let made = null;
   if (i < 0) return;
   if (micro.cells.length < MICRO_MAX) {
     // the new cell goes in the roomiest part of the old one (points it owns, as far from every centre as possible),
@@ -2534,7 +2571,7 @@ function mapDivide(c, a = rnd(0, TAU)) {
       if (m > bs) { bs = m; best = [x, y]; }
     }
     best = [c.tx + dx * r * 0.55, c.ty + dy * r * 0.55]; // split along a random line through the cell; relaxation does the rest
-    const k = microCell(c.x, c.y, r, r, 2); k.w = -r * 1.1; k.wv = 0; c.wv = (c.wv || 0) + r * 3.5; // the new one grows in; the old one jolts k.tx = best[0]; k.ty = best[1]; k.seed = c.seed + rnd(0.3, 0.7);
+    const k = made = microCell(c.x, c.y, r, r, 2); k.w = -r * 1.1; k.wv = 0; c.wv = (c.wv || 0) + r * 3.5; // the new one grows in; the old one jolts k.tx = best[0]; k.ty = best[1]; k.seed = c.seed + rnd(0.3, 0.7);
     // the two halves show neighbouring parts of the map, as if the piece had been cut in two
     const dp = 0.07; k.pu = Math.min(0.9, Math.max(0.1, c.pu + dx * dp)); k.pv = Math.min(0.9, Math.max(0.1, c.pv + dy * dp)); c.pu = Math.min(0.9, Math.max(0.1, c.pu - dx * dp)); c.pv = Math.min(0.9, Math.max(0.1, c.pv - dy * dp));
     c.tx -= dx * r * 0.55; c.ty -= dy * r * 0.55;
@@ -2542,6 +2579,7 @@ function mapDivide(c, a = rnd(0, TAU)) {
   }
   fitRadii();
   if (micro.held === c) micro.held = null;
+  return made;
 }
 function microDivide(c, ax = null) {
   if (micro.cells.length >= MICRO_MAX) return;
@@ -2601,7 +2639,7 @@ function updateMicro(dt) {
   cs.forEach((c, i) => { microCellsA[i].set(c.x, c.y, c.r * (1 + 0.25 * c.u), c.r * (1 - 0.2 * c.u)); microCellsB[i].set(c.seed, c.pu, c.w || 0, 2 + c.pv); });
   u.mode.value = 1; u.n.value = cs.length;
   if (micro.phase === "tissue") {
-    selfReplicate(dt);
+    runChains(dt);
     // after the first split: the view pulls back, the ground turns white, and the torn edge gives way to plain cells
     const split = cs.length > 1, e = 1 - Math.exp(-dt * 2.4);
     micro.zk += ((split ? ZOOM_OUT : 1) - micro.zk) * e; micro.white += ((split ? 1 : 0) - micro.white) * e; micro.torn += ((split ? 0 : 1) - micro.torn) * (1 - Math.exp(-dt * 3));
@@ -2918,22 +2956,40 @@ function layBugs(cs, wrapped) {
   bugGeo.instanceCount = fade > 0 ? n : 0; bugMat.uniforms.alpha.value = (micro.bugA || 0) * fade;
   for (const k of ["iPos", "iRot", "iTex"]) bugGeo.attributes[k].needsUpdate = true;
 }
-// the player has eight divisions (the first press-and-hold counts); after that the tissue divides by itself until it fills the page
-const TAPS = 8;
+// every touch sets off a chain: the cell divides, then the cell it just made divides, and the cell beside it further out,
+// and so on for a few generations, rippling outward from the finger and dying away, so you can see what your touch did
+const CHAIN_DEPTH = 2, CHAIN_STEP = 0.36;
 function microSplit(c, axis = rnd(0, TAU), auto = false) {
-  mapDivide(c, axis); micro.squeezed = true;
-  if (auto) { if (Math.random() < 0.5) pop(); return; }
-  micro.taps = (micro.taps || 0) + 1; pop(); buzz([10, 30, 14]);
-  const left = TAPS - micro.taps;
-  hint(left <= 0 ? "" : left === TAPS - 1 ? "tap a cell to divide it" : left <= 3 ? `${left} more` : "");
+  const k = mapDivide(c, axis); micro.squeezed = true; pop();
+  if (auto) return k;
+  buzz([10, 30, 14]);
+  const chain = { ox: c.tx, oy: c.ty, done: new Set([c, k]) };
+  queueNext(chain, c, k, CHAIN_DEPTH);
+  hint(micro.cells.length < 4 ? "tap a cell" : "");
+  return k;
 }
-// once the taps are spent: a division every so often, always of the roomiest cell, until the page is full
-function selfReplicate(dt) {
-  if ((micro.taps || 0) < TAPS || micro.cells.length >= MICRO_MAX - 2) return;
-  if ((micro.autoT = (micro.autoT || 0) - dt) > 0) return;
-  micro.autoT = reduced ? 0.5 : rnd(0.22, 0.4);
-  let big = null; for (const c of micro.cells) if (!big || c.r > big.r) big = c;
-  if (big) microSplit(big, rnd(0, TAU), true);
+// the next in a chain: the cell just made, and the nearest neighbour lying further out from where the chain began
+function queueNext(chain, from, made, depth) {
+  if (depth <= 0) return;
+  const next = [];
+  if (made) next.push(made);
+  const d0 = Math.hypot(from.tx - chain.ox, from.ty - chain.oy);
+  const near = micro.cells.filter(o => !chain.done.has(o) && Math.hypot(o.tx - chain.ox, o.ty - chain.oy) >= d0)
+    .sort((a, b) => Math.hypot(a.tx - from.tx, a.ty - from.ty) - Math.hypot(b.tx - from.tx, b.ty - from.ty))[0];
+  if (near) { chain.done.add(near); next.push(near); }
+  for (const o of next) (micro.pending = micro.pending || []).push({ chain, cell: o, depth: depth - 1, t: CHAIN_STEP * (reduced ? 1.6 : 1) });
+}
+function runChains(dt) {
+  const P = micro.pending; if (!P || !P.length) return;
+  for (let i = P.length - 1; i >= 0; i--) {
+    const e = P[i]; if ((e.t -= dt) > 0) continue;
+    P.splice(i, 1);
+    if (!micro.cells.includes(e.cell) || micro.cells.length >= MICRO_MAX) continue;
+    // each split points away from where the chain began, so the ripple reads as moving outward
+    const k = microSplit(e.cell, Math.atan2(e.cell.ty - e.chain.oy, e.cell.tx - e.chain.ox) + rnd(-0.5, 0.5), true);
+    if (k) e.chain.done.add(k);
+    queueNext(e.chain, e.cell, k, e.depth);
+  }
 }
 // touches go to the microscope while it is up
 function microPointer(ev) {
@@ -2943,7 +2999,7 @@ function microPointer(ev) {
   if (ev.type === "pointermove" || ev.type === "pointerdown") { [micro.ptr.x, micro.ptr.y] = toTissue(ev.clientX, ev.clientY); micro.ptr.on = true; }
   if (ev.type === "pointerdown") micro.ptr.down = true;
   if (ev.type === "pointerup" || ev.type === "pointercancel") { micro.ptr.down = false; if (ev.pointerType !== "mouse") micro.ptr.on = false; }
-  if (ev.type === "pointerdown") { if (micro.phase !== "tissue" || (micro.taps || 0) >= TAPS) return;
+  if (ev.type === "pointerdown") { if (micro.phase !== "tissue") return;
     if (ev.clientX < FR.x || ev.clientY < FR.y || ev.clientX > FR.x + FR.w || ev.clientY > FR.y + FR.h) return; // a tap on the black round the picture
     const c = microAt(...toTissue(ev.clientX, ev.clientY)); if (c) { if (micro.squeezed) microSplit(c, rnd(0, TAU)); else { micro.held = c; micro.heldId = ev.pointerId; buzz(8); } } audio(); }
   else if ((ev.type === "pointerup" || ev.type === "pointercancel") && ev.pointerId === micro.heldId) micro.held = null;
