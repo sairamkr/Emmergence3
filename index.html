@@ -925,8 +925,12 @@ function audio() {
   } catch (e) { AC = null; }
   return AC;
 }
-// five glass knocks, taking turns in order for each pop
-const KNOCK_FILES = ["knock1.mp3", "knock2.mp3", "knock3.mp3", "knock4.mp3", "knock5.mp3"];
+// six single glass knocks
+// six single glass knocks (knock 4 was two knocks, cut apart) and nine strikes cut from a wind-chime recording; and one
+// long chime in D for the first cell
+const KNOCK_FILES = ["knock1.mp3", "knock2.mp3", "knock3.mp3", "knock4a.mp3", "knock4b.mp3", "knock5.mp3",
+  "chime1.mp3", "chime2.mp3", "chime3.mp3", "chime4.mp3", "chime5.mp3", "chime6.mp3", "chime7.mp3", "chime8.mp3", "chime9.mp3", "chime-d3.mp3"];
+const N_KNOCK = 6, D3 = KNOCK_FILES.length - 1;
 const KNOCKS = { bufs: KNOCK_FILES.map(() => null), next: 0, loading: false };
 function loadKnocks() {
   KNOCKS.loading = true;
@@ -946,15 +950,21 @@ function squeezeUpdate(o) {
   o.snd.g.gain.setTargetAtTime(0.05 + 0.07 * Math.min(1, o.p), t, 0.05);
 }
 function squeezeStop(o) { if (!o.snd || !AC) return; const s = o.snd, t = AC.currentTime; o.snd = null; s.g.gain.setTargetAtTime(0, t, 0.04); s.src.stop(t + 0.3); }
+// the long D chime, once, for the first cell as it splits
+function chimeFirst() {
+  const A = audio(), b = A && KNOCKS.bufs[D3]; if (!b) return;
+  const src = A.createBufferSource(), g = A.createGain(); src.buffer = b; g.gain.value = 0.45;
+  src.connect(g).connect(A.destination); src.start();
+}
 function pop() {
   const A = audio(); if (!A) return;
   // a glass knock picked at random (never the same one twice running), each a touch late, quieter or louder, higher or lower
   // than the last, so the knocks of a chain fall loosely, out of step, rather than in a tick-tock
-  const ready = KNOCKS.bufs.map((b, i) => b ? i : -1).filter(i => i >= 0 && i !== KNOCKS.last);
+  const ready = KNOCKS.bufs.map((b, i) => b ? i : -1).filter(i => i >= 0 && i !== KNOCKS.last && i !== D3);
   if (ready.length) {
     const i = ready[Math.floor(Math.random() * ready.length)]; KNOCKS.last = i;
     const src = A.createBufferSource(), g = A.createGain(); src.buffer = KNOCKS.bufs[i];
-    src.playbackRate.value = 0.9 + Math.random() * 0.18; g.gain.value = 0.18 + Math.random() * 0.14;
+    src.playbackRate.value = 0.9 + Math.random() * 0.18; g.gain.value = (i < N_KNOCK ? 0.18 : 0.3) + Math.random() * 0.14;
     src.connect(g).connect(A.destination); src.start(A.currentTime + Math.random() * 0.16); return;
   }
   const t = A.currentTime, o = A.createOscillator(), g = A.createGain();
@@ -2506,7 +2516,7 @@ const toTissue = (x, y) => { const cx = FR.x + FR.w / 2, cy = FR.y + FR.h / 2, z
 // the area the tissue spreads over: the window, as large as it will be once the view has pulled back
 function tissueRect() { const z = micro.cells.length > 1 ? ZOOM_OUT : 1, cx = FR.x + FR.w / 2, cy = FR.y + FR.h / 2; return { x: cx - FR.w / 2 / z, y: cy - FR.h / 2 / z, w: FR.w / z, h: FR.h / z }; }
 function seedTiling() { // one cell to begin with: the map, filling the screen
-  micro.zk = 1; micro.white = 0; micro.torn = 1; micro.pending = []; micro.chains = []; document.body.classList.add("dark");
+  micro.zk = 1; micro.white = 0; micro.torn = 1; micro.pending = []; micro.chains = []; micro.touches = 0; document.body.classList.add("dark");
   micro.cells.length = 0; micro.bigTurn = Math.floor(Math.random() * 2); const c0 = microCell(FR.x + FR.w / 2, FR.y + FR.h / 2, 1, 1, 2); c0.pu = 0.47; c0.pv = 0.6; fitRadii(); // the first shows the walled city
 }
 function seedTilingMany() {
@@ -2958,13 +2968,17 @@ function layBugs(cs, wrapped) {
 }
 // every touch sets off a chain: the cell divides, then the cell it just made divides, and the cell beside it further out,
 // and so on for a few generations, rippling outward from the finger and dying away, so you can see what your touch did
-const CHAIN_DEPTH = 2, CHAIN_STEP = 0.36;
+const CHAIN_MAX = 6, CHAIN_STEP = 0.36;
 function microSplit(c, axis = rnd(0, TAU), auto = false) {
-  const k = mapDivide(c, axis); micro.squeezed = true; pop();
+  const first = micro.cells.length === 1;
+  const k = mapDivide(c, axis); micro.squeezed = true;
+  if (first && !auto) chimeFirst(); else pop();
   if (auto) return k;
   buzz([10, 30, 14]);
+  // the chains grow with each touch: the first split stands alone, the second carries one step further, the third two, …
+  micro.touches = (micro.touches || 0) + 1;
   const chain = { ox: c.tx, oy: c.ty, done: new Set([c, k]) };
-  queueNext(chain, c, k, CHAIN_DEPTH);
+  queueNext(chain, c, k, Math.min(micro.touches - 1, CHAIN_MAX));
   hint(micro.cells.length < 4 ? "tap a cell" : "");
   return k;
 }
