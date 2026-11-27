@@ -1,14 +1,4 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#8a8a8a">
-<title>Squish</title>
-<style>html,body{margin:0;height:100%;background:#8a8a8a}</style>
-</head>
-<body>
-
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#8a8a8a"><title>Squish</title><style>html,body{margin:0;height:100%;background:#8a8a8a}</style></head><body>
 <meta name="claude:viewport-fit-sides" content="cover">
 <!-- Creature paper: forty square fragments cut from the maps in the author's own MapTextures2 collection. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2321,13 +2311,13 @@ const microMat = new THREE.ShaderMaterial({
     field: { value: inkField }, res: { value: new THREE.Vector2(1, 1) }, dpr: { value: 1 }, mode: { value: 0 }, n: { value: 0 },
     A: { value: microCellsA }, B: { value: microCellsB }, centre: { value: new THREE.Vector2() }, rin: { value: 0 }, rout: { value: 0 }, rim: { value: 0 },
     orbC: { value: new THREE.Vector2() }, orbR: { value: 1e5 }, k: { value: 1 }, maps: { value: cellMapsTex }, cellR: { value: 100 },
-    jali2: { value: JALI2_TEX }, fillAmt: { value: 0 }, tm: { value: 0 }, torn: { value: 1 }, gray: { value: 0 }, jaliT: { value: 0 }, jaliS: { value: 0.7 }, jaliR: { value: 100 }, jaliI: { value: 0 }, jali1: { value: JALI_PANELS }, jaliP: { value: new THREE.Vector2() }, crackP: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) }, crackC: { value: Array.from({ length: 5 }, () => new THREE.Vector2(-1e5, -1e5)) }, jaliPs: { value: new THREE.Vector2() }, bgCol: { value: new THREE.Color(0x050403) }, rev: { value: new THREE.Vector4() }, zoomL: { value: new THREE.Vector4(1, 1, 1, 1) }, delhi: { value: DELHI_PLAIN }, delhi1950: { value: DELHI1950 }, headT: { value: HEAD_TEX },
+    jali2: { value: JALI2_TEX }, jaliOld: { value: JALI1_TEX }, pcN: { value: 0 }, jPan: { value: 0 }, jN: { value: 0 }, pcR: { value: Array.from({ length: 16 }, () => new THREE.Vector4()) }, pcA: { value: Array.from({ length: 16 }, () => new THREE.Vector4()) }, pcS: { value: new Array(16).fill(0.5) }, fillAmt: { value: 0 }, tm: { value: 0 }, torn: { value: 1 }, gray: { value: 0 }, jaliT: { value: 0 }, jaliS: { value: 0.7 }, jaliR: { value: 100 }, jaliI: { value: 0 }, jaliSweep: { value: 0 }, jStage: { value: 0 }, jaliFull: { value: new THREE.TextureLoader().load("jalifull.jpg") }, jali1: { value: JALI_PANELS }, jaliP: { value: new THREE.Vector2() }, crackP: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) }, crackC: { value: Array.from({ length: 5 }, () => new THREE.Vector2(-1e5, -1e5)) }, jaliPs: { value: new THREE.Vector2() }, bgCol: { value: new THREE.Color(0x050403) }, rev: { value: new THREE.Vector4() }, zoomL: { value: new THREE.Vector4(1, 1, 1, 1) }, delhi: { value: DELHI_PLAIN }, delhi1950: { value: DELHI1950 }, headT: { value: HEAD_TEX },
     win: { value: new THREE.Vector4(0, 0, 1, 1) }, mapOff: { value: 0 }, cutC: { value: new THREE.Vector2() }, cutR: { value: 1 }, cutA: { value: 0 }, cutP: { value: 0 }, hole: { value: 0 }, lift: { value: 0 }, tissueA: { value: 1 }, bgA: { value: 1 }, seed: { value: 0 }, tile: { value: 230 }, dissolve: { value: -1 }, wrap: { value: 0 },
   },
   vertexShader: "void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }",
   fragmentShader: `uniform sampler2D field; uniform sampler2D maps; uniform vec2 res; uniform float dpr; uniform int mode; uniform int n;
     uniform vec4 A[${MICRO_MAX}]; uniform vec4 B[${MICRO_MAX}];
-    uniform vec2 centre; uniform float rin, rout, rim; uniform vec2 orbC; uniform float orbR, k, tissueA, bgA, seed, tile, dissolve; uniform float wrap; uniform float cellR; uniform sampler2D delhi, delhi1950, headT, jali1, jali2; uniform vec4 rev, zoomL; uniform float fillAmt, tm, torn, gray, jaliT, jaliS, jaliR, jaliI; uniform vec2 jaliP, jaliPs; uniform vec2 crackP[8]; uniform vec2 crackC[5]; uniform vec3 bgCol;
+    uniform vec2 centre; uniform float rin, rout, rim; uniform vec2 orbC; uniform float orbR, k, tissueA, bgA, seed, tile, dissolve; uniform float wrap; uniform float cellR; uniform sampler2D delhi, delhi1950, headT, jali1, jali2; uniform vec4 rev, zoomL; uniform float fillAmt, tm, torn, gray, jaliT, jaliS, jaliR, jaliI, jaliSweep, jStage; uniform sampler2D jaliFull; uniform vec2 jaliP, jaliPs; uniform vec2 crackP[8]; uniform vec2 crackC[5]; uniform sampler2D jaliOld; uniform int pcN; uniform float jPan, jN; uniform vec4 pcR[16]; uniform vec4 pcA[16]; uniform float pcS[16]; uniform vec3 bgCol;
     uniform vec4 win; uniform float mapOff, cutR, cutA, cutP, hole, lift; uniform vec2 cutC;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -2510,31 +2500,65 @@ const microMat = new THREE.ShaderMaterial({
       c = mix(paper(sp), c, inCircle);
       c = mix(c, mix(vec3(0.78), vec3(0.075), cellIn), gray); // at the end: the space between the cells fades to the jali's stone, the cells to the dark of its openings
       if (jaliT > 0.0) {
-        // pressed once more: one whole jali panel breaks through on the left of the card. Its right side is a jagged crack
-        // running top to bottom, and the cells beyond it stay, so their light lines meet the panel's stone bars along the
-        // crack. It breaks open from the top-left corner, the crack running down and across
-        vec2 q = (sp - win.xy) / win.zw;                                         // 0..1 across the card
-        float ang = -0.03, cs = cos(ang), sn = sin(ang);
-        vec2 pc = sp - win.xy - vec2(0.0, win.w * 0.5);
-        vec2 pr = vec2(cs * pc.x - sn * pc.y, sn * pc.x + cs * pc.y);           // the panel, set very slightly askew
-        float ph = win.w * 1.04, pw = ph * 0.6;
-        vec2 lq = vec2((pr.x + win.z * 0.02) / pw, pr.y / ph + 0.5);
-        vec3 jc = texture2D(jali1, vec2((jaliI + clamp(lq.x, 0.003, 0.997)) / ${JALI_N}.0, 1.0 - clamp(lq.y, 0.003, 0.997))).rgb;
-        // the crack: an organic, torn edge down the card, near the middle. It wanders in long curves and short bites, and is
-        // warped in both directions so it forms lobes and inlets rather than a line (sizes in card heights, so it reads the
-        // same on a wide card or a tall one)
-        float H = win.w; vec2 w2 = (sp - win.xy) / H;
-        // one smooth, organic curve: a slow S-bend with a single broad bulge, no small bites
-        float ex = 0.12 * sin(w2.y * 3.4 + 1.3) + 0.06 * sin(w2.y * 6.1 + 4.0) + 0.08 * (smoothstep(0.0, 1.0, vnoise(vec2(w2.y * 1.6, 3.7))) - 0.5);
-        float edgeX = win.x + min(win.z * 0.42, pw * 0.74) + ex * H;   // always inside the panel, so the panel's own straight edge never shows
-        float inPanel = step(0.0, lq.x) * step(lq.x, 1.0);
-        float side = 1.0 - smoothstep(edgeX - 0.7, edgeX + 0.7, sp.x);
-        float cx = (edgeX - win.x) / win.z;
-        float wipe = 1.0;   // all at once
-        float open = side * wipe * inPanel;
-        // the panel's own outer edge, a thin dark line where it meets the card's left side, as cut stone
-        jc *= 1.0 - 0.6 * (1.0 - smoothstep(0.0, 0.006, lq.x));
-        c = mix(c, jc, open);
+        // after the grey: four presses, four big torn pieces of jali, built up left to right until the card is all jali.
+        // 1 the left third, 2 the wedge beside it, 3 the lower right, 4 the top right. Each is there at once
+        float H = win.w, px = 1.0 / H, Ac = win.z / win.w;
+        vec2 q = (sp - win.xy) / win.zw;                                        // 0..1 across the card, y down
+        vec2 h = (sp - win.xy) / H;                                             // in card heights
+        float inCard = step(0.0, q.x) * step(q.x, 1.0) * step(0.0, q.y) * step(q.y, 1.0);
+        float wx = q.x + jPan;                                                  // across the jali, in card widths: the card plus how far the view has moved right
+        // drawn bottom to top: 4, 2, 3, 1. From your two panels (1 and 4), the old jali (2) and Humayun's tomb (3)
+        for (int k = 0; k < 4; k++) {
+          int i = k == 0 ? 3 : k == 1 ? 1 : k == 2 ? 2 : 0;
+          if (float(i) >= jStage) continue;
+          float fi = float(i), f, x0, y0, sc, src; vec2 o;
+          if (i == 0) { f = (wx - (0.315 - 0.13 * smoothstep(0.42, 1.0, q.y))) * Ac; x0 = 0.0; y0 = 0.0; sc = 0.97; src = 0.0; o = vec2(0.015, 0.015); }
+          else if (i == 1) { f = (wx - (0.6 - 0.27 * smoothstep(0.38, 1.0, q.y))) * Ac + (vnoise(h * 3.2 + 5.0) - 0.5) * 0.09; x0 = 0.27; y0 = 0.0; sc = 0.8; src = 4.0; o = vec2(0.14, 0.12); }
+          else if (i == 2) { float t = clamp((wx - 0.12) / 0.8, 0.0, 1.0); f = 0.32 + 0.68 * pow(1.0 - t, 1.6) - q.y; x0 = 0.12; y0 = 0.3; sc = 0.4; src = 2.0; o = vec2(0.05, 0.2); }
+          else { f = (0.53 - wx) * Ac; x0 = 0.5; y0 = 0.0; sc = 0.72; src = 1.0; o = vec2(0.04, 0.04); }
+          if (i >= 2) f = max(f, (wx - 1.03 - 0.02 * sin(q.y * 4.0 + fi)) * Ac);   // the card's first right edge, torn too, now the camera moves on
+          // a torn paper edge: a slow wander, a ragged middle, and fine fibres
+          float w = (vnoise(h * 5.0 + fi * 13.1) - 0.5) * 0.035 + (vnoise(h * 34.0 + fi * 7.3) - 0.5) * 0.008 + (vnoise(h * 150.0 + fi * 3.7) - 0.5) * 0.003;
+          float sd = f + w;
+          float inP = (1.0 - smoothstep(-px, px, sd)) * inCard;
+          vec2 lp = vec2((wx - x0) * Ac, q.y - y0);                            // from the piece's corner, in card heights
+          float asp = src < 1.5 ? 0.625 : src < 2.5 ? 830.0 / 1380.0 : src < 3.5 ? 1093.0 / 1500.0 : 1074.0 / 1500.0;
+          vec2 uv = o + lp * sc / vec2(asp, 1.0);
+          uv = 1.0 - abs(1.0 - mod(uv, 2.0));                                   // mirrored, should a piece run past its photo
+          vec3 jc;
+          if (src < 0.5) jc = texture2D(jali1, vec2(clamp(uv.x, 0.003, 0.997) / ${JALI_N}.0, 1.0 - uv.y)).rgb;
+          else if (src < 1.5) jc = texture2D(jali1, vec2((1.0 + clamp(uv.x, 0.003, 0.997)) / ${JALI_N}.0, 1.0 - uv.y)).rgb;
+          else if (src < 2.5) jc = texture2D(jaliFull, vec2(uv.x, 1.0 - uv.y)).rgb;
+          else if (src < 3.5) jc = texture2D(jaliOld, vec2(uv.x, 1.0 - uv.y)).rgb;
+          else jc = texture2D(jali2, vec2(uv.x, 1.0 - uv.y)).rgb;
+          jc = mix(jc, vec3(0.88), 0.3 * smoothstep(-0.004, -0.001, sd));     // a pale lip where it tore
+          c = mix(c, jc, inP);
+        }
+        // then on, each press: the view moves on right and one more torn piece goes down at the frontier, the cells beyond it
+        for (int m = 0; m < 4; m++) {
+          float n = jN - 4.0 + float(m);
+          if (n < 0.0) continue;
+          float hs = fract(sin(n * 12.9898 + 3.1) * 43758.5), hs2 = fract(sin(n * 78.233 + 1.7) * 43758.5);
+          float L = 0.9 + 0.42 * n + (hs - 0.5) * 0.1 * (q.y - 0.5) * 2.0 + 0.03 * sin(q.y * 3.0 + n);
+          float Rr = 0.9 + 0.42 * n + 0.6 + (hs2 - 0.5) * 0.12 * (q.y - 0.5) * 2.0 + 0.04 * sin(q.y * 2.3 + n * 1.7);
+          float f = max(L - wx, wx - Rr) * Ac;
+          float w = (vnoise(h * 5.0 + n * 13.1 + 40.0) - 0.5) * 0.035 + (vnoise(h * 34.0 + n * 7.3) - 0.5) * 0.008 + (vnoise(h * 150.0 + n * 3.7) - 0.5) * 0.003;
+          float sd = f + w;
+          float inP = (1.0 - smoothstep(-px, px, sd)) * inCard;
+          float src = mod(n + 2.0, 4.0);                                        // the old jali, Humayun's tomb, panel 1, panel 2, ...
+          float srcT = src < 0.5 ? 4.0 : src < 1.5 ? 2.0 : src < 2.5 ? 0.0 : 1.0;
+          float asp = srcT < 1.5 ? 0.625 : srcT < 2.5 ? 830.0 / 1380.0 : 1074.0 / 1500.0;
+          vec2 lp = vec2((wx - (0.9 + 0.42 * n - 0.06)) * Ac, q.y);
+          vec2 uv = vec2(0.04 + 0.05 * hs, 0.04 + 0.1 * hs2) + lp * 0.55 / vec2(asp, 1.0);
+          uv = 1.0 - abs(1.0 - mod(uv, 2.0));
+          vec3 jc;
+          if (srcT < 0.5) jc = texture2D(jali1, vec2(clamp(uv.x, 0.003, 0.997) / ${JALI_N}.0, 1.0 - uv.y)).rgb;
+          else if (srcT < 1.5) jc = texture2D(jali1, vec2((1.0 + clamp(uv.x, 0.003, 0.997)) / ${JALI_N}.0, 1.0 - uv.y)).rgb;
+          else if (srcT < 2.5) jc = texture2D(jaliFull, vec2(uv.x, 1.0 - uv.y)).rgb;
+          else jc = texture2D(jali2, vec2(uv.x, 1.0 - uv.y)).rgb;
+          jc = mix(jc, vec3(0.88), 0.3 * smoothstep(-0.004, -0.001, sd));
+          c = mix(c, jc, inP);
+        }
       }
       gl_FragColor = vec4(c, a);
     }`,
@@ -2563,11 +2587,14 @@ const ZOOM_OUT = 0.55;
 // further with every touch, and the tissue spreads to fill the wider view
 const zoomTarget = () => (micro.cells.length > 1 ? Math.max(0.28, ZOOM_OUT * Math.pow(0.84, Math.max(0, (micro.touches || 0) - 2))) : 1) * (micro.jaliT >= 0 ? 0.86 : 1); // and back a little more as the jali opens
 // a point on the screen, in the tissue's own coordinates (the view may be pulled back)
-const toTissue = (x, y) => { const cx = FR.x + FR.w / 2, cy = FR.y + FR.h / 2, z = micro.zk || 1; return [cx + (x - cx) / z, cy + (y - cy) / z]; };
+// the camera: the tissue point at the middle of the card is (cx + pan, cy); pan grows as the jali moves on right
+const panPx = (p = micro.jPan || 0, z = micro.zk || 1) => p * FR.w / z;
+const panTarget = () => { const jn = Math.max(0, (micro.jStage || 0) - 4); return jn ? 0.65 + 0.42 * (jn - 1) : 0; };
+const toTissue = (x, y) => { const cx = FR.x + FR.w / 2, cy = FR.y + FR.h / 2, z = micro.zk || 1; return [cx + panPx() + (x - cx) / z, cy + (y - cy) / z]; };
 // the area the tissue spreads over: the window, as large as it will be once the view has pulled back
-function tissueRect() { const z = zoomTarget(), cx = FR.x + FR.w / 2, cy = FR.y + FR.h / 2; return { x: cx - FR.w / 2 / z, y: cy - FR.h / 2 / z, w: FR.w / z, h: FR.h / z }; }
+function tissueRect() { const z = zoomTarget(), cx = FR.x + FR.w / 2 + panPx(panTarget(), z), cy = FR.y + FR.h / 2; return { x: cx - FR.w / 2 / z, y: cy - FR.h / 2 / z, w: FR.w / z, h: FR.h / z }; }
 function seedTiling() { // one cell to begin with: the map, filling the screen
-  micro.zk = 1; micro.white = 0; micro.torn = 1; micro.pending = []; micro.chains = []; micro.touches = 0; micro.grayT = 0; micro.jaliT = -1; document.body.classList.add("dark");
+  micro.zk = 1; micro.white = 0; micro.torn = 1; micro.pending = []; micro.chains = []; micro.touches = 0; micro.grayT = 0; micro.jaliT = -1; micro.jStage = 0; micro.jPan = 0; micro.cutups = []; microMat.uniforms.pcN.value = 0; document.body.classList.add("dark");
   micro.cells.length = 0; micro.bigTurn = Math.floor(Math.random() * 2); const c0 = microCell(FR.x + FR.w / 2, FR.y + FR.h / 2, 1, 1, 2); c0.pu = 0.47; c0.pv = 0.6; fitRadii(); // the first shows the walled city
 }
 function seedTilingMany() {
@@ -2707,16 +2734,19 @@ function updateMicro(dt) {
     const full = cs.length >= MICRO_MAX - 2 && !(micro.pending && micro.pending.length);
     if (full) { const was = micro.grayT || 0; micro.grayT = was + dt; if (was < 0.25 && micro.grayT >= 0.25) chimeFirst(); } // the D chime again as the fade begins
     u.gray.value = full ? smooth(Math.min(1, Math.max(0, (micro.grayT - 0.25) / 1.1))) : 0;
-    if (micro.jaliT >= 0) { micro.jaliT += dt; u.jaliT.value = Math.min(1, micro.jaliT / 2.6); u.jaliS.value = 1.15 - 0.15 * smooth((micro.jaliT - 0.6) / 3.2);
+    if (micro.jaliT >= 0) { micro.jaliT += dt; u.jaliT.value = 1; u.jStage.value = micro.jStage;
+      { const jn = Math.max(0, micro.jStage - 4); // the whole camera glides right to keep the frontier in sight
+        micro.jPan = (micro.jPan || 0) + (panTarget() - (micro.jPan || 0)) * (1 - Math.exp(-dt * 2.4)); u.jPan.value = micro.jPan; u.jN.value = jn; }
+      u.jaliSweep.value = micro.jStage >= 4 ? ease(Math.min(1, (micro.jaliT - micro.sweepAt) / 1.6)) : 0; u.jaliS.value = 1.15 - 0.15 * smooth((micro.jaliT - 0.6) / 3.2);
       u.jaliR.value = 0.42 * Math.min(FR.w, FR.h) / micro.zk; u.jaliI.value = micro.jaliI;
-      u.crackC.value.forEach((v, i) => { const c = (micro.crackCells || [])[i]; if (c) v.set(c.x, c.y); else v.set(-1e5, -1e5); }); u.jaliP.value.set(...micro.jaliAt); u.jaliPs.value.set(...micro.jaliAtS); }
+      u.crackC.value.forEach((v, i) => { const c = (micro.crackCells || [])[i]; if (c) v.set(c.x, c.y); else v.set(-1e5, -1e5); }); }
     else u.jaliT.value = 0;
     // after the first split: the view pulls back, the ground turns white, and the torn edge gives way to plain cells
     const split = cs.length > 1, e = 1 - Math.exp(-dt * 2.4);
     micro.zk += (zoomTarget() - micro.zk) * (1 - Math.exp(-dt * 1.4)); micro.white += ((split ? 1 : 0) - micro.white) * e; micro.torn += ((split ? 0 : 1) - micro.torn) * (1 - Math.exp(-dt * 3));
     u.torn.value = micro.torn; u.bgCol.value.setRGB(lerp(0.02, 0.985, micro.white), lerp(0.016, 0.98, micro.white), lerp(0.015, 0.97, micro.white));
     document.body.classList.toggle("dark", micro.white < 0.5 || u.gray.value > 0.5);
-    u.orbC.value.set(cx, cy); u.orbR.value = 1e5; u.k.value = micro.zk; u.tissueA.value = 1; u.bgA.value = 1;
+    u.orbC.value.set(cx, cy); u.orbR.value = 1e5; u.k.value = micro.zk; u.tissueA.value = 1; u.bgA.value = 1; u.centre.value.set(cx + panPx(), cy);
     // when the map has taken over (or most of the tiling), the green page comes through by reaction diffusion
     const L = micro.layers, maps = cs.filter(c => c.kind === 2).length, jalis = cs.length - maps;
     const GO_ON = false; // the step on to the green page is switched off for now: the tiling stays
@@ -3069,6 +3099,30 @@ function runChains(dt) {
   }
 }
 // touches go to the microscope while it is up
+// the jali cut-ups. Band k (1..5): where across the card (share of its width), how big (half-size, in the card's
+// shorter side) and how many pieces
+const CUT_BANDS = [[0.035, 0.05, 5], [0.15, 0.08, 4], [0.31, 0.12, 3], [0.51, 0.17, 2], [0.75, 0.25, 1]];
+const JALI_SRC_ASP = [0.625, 0.625, 830 / 1380, 1093 / 1500, 1074 / 1500];
+// keep the crop off the photos' borders, where there is plain stone or the frame
+const cropAt = w => { const m = Math.min(0.1, (1 - w) / 2); return m + Math.random() * Math.max(0, 1 - w - 2 * m); };
+function addCutups(k) {
+  const [bx, bs, n] = CUT_BANDS[k - 1], U = Math.min(FR.w, FR.h) / FR.h * (FR.w < FR.h ? 0.72 : 1), /* smaller on a tall phone card, so the bands stay apart */ u = microMat.uniforms;
+  micro.cutups = micro.cutups || [];
+  if (k === 1) micro.cutups = [];
+  for (let j = 0; j < n && micro.cutups.length < 16; j++) {
+    const asp = rnd(0.62, 1.5), hs = bs * rnd(0.85, 1.15), hw = hs * Math.sqrt(asp) * U, hh = hs / Math.sqrt(asp) * U;
+    const y = n === 1 ? rnd(0.35, 0.65) : (j + 0.5) / n + rnd(-0.25, 0.25) / n;
+    const x = bx + rnd(-0.6, 0.6) * hw * FR.h / FR.w;
+    const src = Math.floor(Math.random() * 5), sa = JALI_SRC_ASP[src];
+    // how much of the photo the piece shows (share of its height): about the piece's own size on a card-high jali,
+    // a little more for the small scraps so they still read as jali
+    let ch = Math.min(0.8, Math.max(0.2, 2 * hh * rnd(1.0, 1.5))), cw = ch * (hw / hh) / sa;
+    if (cw > 0.8) { ch *= 0.8 / cw; cw = 0.8; }
+    micro.cutups.push({ x, y, hw, hh, a: rnd(-0.07, 0.07), src, u0: cropAt(cw), v0: cropAt(ch), ch });
+  }
+  micro.cutups.forEach((p, i) => { u.pcR.value[i].set(p.x, p.y, p.hw, p.hh); u.pcA.value[i].set(p.a, p.src, p.u0, p.v0); u.pcS.value[i] = p.ch; });
+  u.pcN.value = micro.cutups.length;
+}
 function microPointer(ev) {
   if (!microOn() || ev.target !== cv) return;
   ev.stopImmediatePropagation(); ev.preventDefault();
@@ -3076,23 +3130,17 @@ function microPointer(ev) {
   if (ev.type === "pointermove" || ev.type === "pointerdown") { [micro.ptr.x, micro.ptr.y] = toTissue(ev.clientX, ev.clientY); micro.ptr.on = true; }
   if (ev.type === "pointerdown") micro.ptr.down = true;
   if (ev.type === "pointerup" || ev.type === "pointercancel") { micro.ptr.down = false; if (ev.pointerType !== "mouse") micro.ptr.on = false; }
-  if (ev.type === "pointerdown" && micro.phase === "tissue" && microMat.uniforms.gray.value > 0.6 && micro.jaliT < 0) { micro.jaliT = 0; micro.jaliI = Math.floor(Math.random() * JALI_N);
-    { // the five cells the crack breaks: the one in the top-left corner, then each time the nearest one further right
-      // only cells whose centres are on the card, as it is seen now
-      const [x0, y0] = toTissue(FR.x, FR.y), [x1, y1] = toTissue(FR.x + FR.w, FR.y + FR.h), seen = new Set(), out = [];
-      const vis = micro.cells.filter(c => c.x > x0 && c.x < x1 && c.y > y0 && c.y < y1);
-      let cur = vis.reduce((b, c) => !b || Math.hypot(c.x - x0, c.y - y0) < Math.hypot(b.x - x0, b.y - y0) ? c : b, null);
-      while (cur && out.length < 5) { out.push(cur); seen.add(cur); const cx = cur.x, cy = cur.y;
-        cur = vis.filter(c => !seen.has(c) && c.x > cx - c.r * 0.2).sort((a, b) => Math.hypot(a.x - cx, (a.y - cy) * 1.3) - Math.hypot(b.x - cx, (b.y - cy) * 1.3))[0]; }
-      micro.crackCells = out;
+  if (ev.type === "pointerdown" && micro.phase === "tissue" && microMat.uniforms.gray.value > 0.6) {
+    // four presses: four big torn pieces of jali, left to right, until the card is all jali; then each press moves on right
+    // and lays one more piece at the frontier
+    micro.jStage = (micro.jStage || 0) + 1; if (micro.jaliT < 0) micro.jaliT = 0;
+    if (micro.jStage > 4) { // the camera will move on right: the cells now gone off the left, under the jali, come round to fill
+      // the strip about to come in on the right, and the tiling settles round them
+      const z = zoomTarget(), W = FR.w / z, L = FR.x + FR.w / 2 + panPx(panTarget(), z) - W / 2;
+      for (const c of micro.cells) { if (c.tx >= L) continue; while (c.tx < L) c.tx += W; c.x = c.tx; c.ty += rnd(-0.04, 0.04) * W; c.y = c.ty; }
+      micro.relax = 3.5; micro.relaxTick = 0;
     }
-    { // (the older crack path, unused now)
-      const R = tissueRect(), y1 = R.y + R.h * rnd(0.35, 0.8);
-      microMat.uniforms.crackP.value.forEach((v, i) => { const t = i / 7, x = R.x + R.w * (i === 0 ? -0.02 : t * 1.04), y = R.y + (y1 - R.y) * Math.pow(t, 0.8) + (i && i < 7 ? rnd(-0.09, 0.09) * R.h : 0); v.set(x, i === 0 ? R.y - R.h * 0.02 : y); });
-    }
-    // the panel is centred where you pressed, but kept inside the card
-    const ph = 0.3 * FR.h, pw = 0.6 * ph, sx = Math.min(FR.x + FR.w - pw / 2, Math.max(FR.x + pw / 2, ev.clientX)), sy = Math.min(FR.y + FR.h - ph / 2, Math.max(FR.y + ph / 2, ev.clientY));
-    micro.jaliAt = toTissue(sx, sy); micro.jaliAtS = [sx, sy]; if (!playSound(CRACK, 0.6)) pop(); // the stone cracking open
+    if (!playSound(CRACK, 0.6)) pop(); // the stone cracking open
     buzz([12, 40, 20]); return; } // the last press: crack into the jali
   if (ev.type === "pointerdown") { if (micro.phase !== "tissue") return;
     if (ev.clientX < FR.x || ev.clientY < FR.y || ev.clientX > FR.x + FR.w || ev.clientY > FR.y + FR.h) return; // a tap on the black round the picture
@@ -3198,6 +3246,4 @@ loadMaps().then(() => {
 
 })();
 </script>
-
-</body>
-</html>
+</body></html>
