@@ -40,7 +40,7 @@ function updateCellsToEnvironment(dt, u, cs) {
     // when the map has taken over (or most of the tiling), the green page comes through by reaction diffusion
     const L = micro.layers, maps = cs.filter(c => c.kind === 2).length, jalis = cs.length - maps;
     const GO_ON = false; // the step on to the green page is switched off for now: the tiling stays
-    if (GO_ON && L.t[3] < 0 && (maps >= LAYER_AT[3] || jalis === 0)) { L.t[3] = 0; frameArrival(); introZoom = arrival.z0; fitCamera(); placeArchitecture(); hint(""); }
+    if (GO_ON && L.t[3] < 0 && (maps >= LAYER_AT[3] || jalis === 0)) { L.t[3] = 0; frameArrival(); introZoom = arrival.z0; fitCamera(); hint(""); }
     if (L.t[3] >= 0) L.t[3] += dt;
     const T = reduced ? 0.8 : 2.8, pr = L.t[3] < 0 ? 0 : Math.min(1, L.t[3] / T);
     u.rev.value.set(0, 0, 0, pr);
@@ -60,7 +60,7 @@ function updatePullBack(dt, u, cs, cx, cy) {
 
 // ---------- 4. jali -> environment ----------
 // Once the jali is done (press 8), the camera moves on right. Press 9: a strip of green-washed jali and a carved pillar,
-// straight on from the last jali piece. There are no cells past the pillar: only black. Press 10: a tile of the olive
+// straight on from the last jali piece. Past the pillar: black. Press 10: a tile of the olive
 // painted paper (the environment's ground), flush against the pillar, low down. From then on a tap splits a green tile:
 // a new tile, cut from another part of the paper, slides out flush beside it. The second split sends the camera on right until
 // the pillar is out of view, then it zooms out, and then the D chime plays and the black turns white.
@@ -88,7 +88,6 @@ function resetJaliToEnvironment() { micro.envWhite = 0; micro.envChimed = false;
 function jaliToEnvironmentPress(ev) {
   if ((micro.jStage || 0) >= ENV_PRESSES) return greenTileTap(ev);
   micro.jStage = (micro.jStage || 0) + 1;
-  bringCellsRound();
   if (micro.jStage === ENV_PRESSES) micro.tiles = [{ i: 0, j: 0, fi: 0, fj: 0, t: 1, u0: 0, v0: 0, sc: 1 }]; // the first green tile
   else if (!playSound(CRACK, 0.6)) pop();
   buzz([12, 40, 20]);
@@ -266,7 +265,7 @@ const GLSL_TO_ENV_REVEAL = `      if (mode == 1 && rev.w > 0.0) {
         float b = smoothstep(dissolve - 0.35, dissolve + 0.35, n2);
         c = mix(mapAt(sp) * (0.96 + 0.08 * n2), c, b);
       }`;
-const GLSL_CELLS_TO_JALI_GREY = `      c = mix(c, mix(vec3(0.78), vec3(0.075), cellIn), gray); // at the end: the space between the cells fades to the jali's stone, the cells to the dark of its openings`;
+const GLSL_CELLS_TO_JALI_GREY = `      if (!(jaliT > 0.0 && jStage > 3.5)) c = mix(c, mix(vec3(0.78), vec3(0.075), cellIn), gray); // at the end: the space between the cells fades to the jali's stone, the cells to the dark of its openings`;
 const GLSL_JALI_TO_ENV = `      if (jaliT > 0.0 && jStage > 8.5) {
         // press 9: the green-washed jali strip and the carved pillar, straight on from the last jali piece; past the pillar
         // no more cells, only black (white later). Press 10 on: the green tiles, the first flush against the pillar, low

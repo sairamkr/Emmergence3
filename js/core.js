@@ -15,13 +15,7 @@ const DEFAULTS = {
     firstLivesSeconds: [3, 6], laterLivesSeconds: [14, 34], shortLivesFor: 4, lengthenOver: 30, largeLivesAtLeastSeconds: [28, 46],
     birdChance: 0.6, birdSpeed: 1.6, birdCirclingSpeed: 2.8, birdsCircleAboveHeight: 0.9,
   },
-  buildings: {
-    fromSmall: { tree: 0.25, finial: 0.1, cupola: 0.1, kiosk: 0.09, bay: 0.09, ruin: 0.08, house: 0.06, arcade: 0.05, rampart: 0.05, arcadeWall: 0.04, wingL: 0.03, wingR: 0.03, tower: 0.03, minaret: 0, gate: 0, iwan: 0, domeTop: 0 },
-    fromLarge: { tree: 0, iwan: 0.15, domeTop: 0.15, minaret: 0.12, gate: 0.1, tower: 0.1, arcadeWall: 0.08, rampart: 0.06, arcade: 0.06, house: 0.06, wingL: 0.04, wingR: 0.04, kiosk: 0.04, bay: 0, cupola: 0, finial: 0, ruin: 0 },
-    heightSmall: { tree: [4.5, 6], finial: [1.9, 2.6], ruin: [1.8, 2.4], rampart: [2.6, 3.4], arcade: [2.6, 3.4], house: [2.4, 3.2], minaret: [5, 6.5], gate: [3.5, 4.5], cupola: [1.4, 1.9], kiosk: [3, 3.8], bay: [3, 3.8], arcadeWall: [2.4, 3], wingL: [3.5, 4.2], wingR: [3.5, 4.2], tower: [5, 6], iwan: [4.5, 5.2], domeTop: [3, 3.6] },
-    heightLarge: { tree: [8, 10.5], minaret: [9.5, 12], gate: [7, 8.5], rampart: [5, 6], arcade: [4.6, 5.6], house: [4.8, 6], finial: [3.5, 4.5], ruin: [3.2, 4], iwan: [7, 8.5], domeTop: [5.5, 6.5], tower: [9, 11], arcadeWall: [4.6, 5.6], wingL: [6, 7.5], wingR: [6, 7.5], kiosk: [5, 6], bay: [5, 6], cupola: [2.6, 3.2] },
-    gapSmall: 4.5, gapLarge: 6,
-  },
+  buildings: { gapLarge: 6 }, // how much room a building keeps around it
   watercolour: { strength: 1, wobble: 1, bleed: 1, edges: 1, granulation: 1, wash: 1 },
   ink: { patternSize: 14, lineThickness: 0.5, reachCircle: 3, reachPerson: 1.3, reachPerSize: 1, holdSeconds: 3, fadeSeconds: 11, colour: "#3b2413" },
   text: { chance: 0.4, staySeconds: 14, fadeSeconds: 1.8, width: 10.5, colour: "#2c1c10", lines: ["Placeholder line"] }, // (the older line written on the ground; no longer shown)

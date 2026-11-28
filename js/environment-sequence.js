@@ -977,20 +977,54 @@ function updateFusions(dt) {
     }
   }
 }
-// ---------- four people become a building; a building cracked open lets creatures out ----------
-// The building is one of the large ones (a gateway, a domed tomb, a minaret...), rising where the four met. A tap cracks
-// it: a black tear opens in it and a creature comes out of the crack, flying (a crane) or crawling (a frog, a
-// caterpillar). Each building can be cracked a few times.
-const CRACKS_MAX = 3;
+// ---------- four people become a building; a building cracked open lets creatures out, and grows ----------
+// The building is your collage, built up piece by piece. Four people merging raise only its start: one of the two
+// ruins (the onion dome on rubble, or the onion dome on the arcade). Each tap cracks it: a black tear opens, a creature
+// comes out through the tear (a crane flying, a frog or a caterpillar crawling), and the building grows one piece:
+// first the other ruin, then the tower with the jhumka dome and the shop below it, then the checkered floor, until it
+// is the whole building. It can be cracked twice more after that.
+// The pieces, where each sits in the whole building (x, y, w, h in pixels of the full collage, 1109 x 1412), drawn back
+// to front
+const BLD_PARTS = {
+  floor: { src: "bld-floor.png", x: 17, y: 813, w: 1092, h: 599 },
+  tower: { src: "bld-tower.png", x: 240, y: 0, w: 323, h: 885 },
+  ruin1: { src: "bld-ruin1.png", x: 0, y: 519, w: 628, h: 485 },
+  ruin2: { src: "bld-ruin2.png", x: 525, y: 478, w: 572, h: 527 },
+  shop: { src: "bld-shop.png", x: 332, y: 589, w: 298, h: 237 },
+};
+for (const k in BLD_PARTS) { const im = new Image(); im.src = BLD_PARTS[k].src; BLD_PARTS[k].img = im; }
+const BLD_W = 1109, BLD_H = 1412, BLD_BASE = 1000; // the ground line of the two ruins, in collage pixels
+const BLD_S = 6 / 485;   // world units per collage pixel: a ruin about a person and a fifth tall
+const BLD_RES = 0.6;     // how finely the building's picture is drawn (of the collage's own pixels)
+const CRACKS_MAX = 5;
+function drawBuilding(r, fade) { // paints the pieces it has so far onto its picture; fade: the newest piece, part way in
+  const x = r.ctx; x.clearRect(0, 0, x.canvas.width, x.canvas.height);
+  for (const k of ["floor", "tower", "ruin1", "ruin2", "shop"]) {
+    if (!r.parts.has(k)) continue; const P = BLD_PARTS[k];
+    if (!P.img.complete || !P.img.naturalWidth) { P.img.addEventListener("load", () => drawBuilding(r), { once: true }); continue; }
+    x.globalAlpha = fade && fade.parts.includes(k) ? fade.a : 1;
+    x.drawImage(P.img, P.x * BLD_RES, P.y * BLD_RES, P.w * BLD_RES, P.h * BLD_RES);
+  }
+  x.globalAlpha = 1; r.tex.needsUpdate = true;
+  r.alphaData = x.getImageData(0, 0, x.canvas.width, x.canvas.height).data;
+}
 function riseFromFusion(f) {
-  const B = CFG.buildings, odds = Object.entries(B.fromLarge).filter(([k, p]) => BUILD[k] && p > 0), sum = odds.reduce((a, [, p]) => a + p, 0) || 1;
-  let k = Math.random() * sum, kind = odds[0][0]; for (const [name, p] of odds) { if ((k -= p) < 0) { kind = name; break; } }
-  const height = rnd(...(B.heightLarge[kind] || [6, 8])) * 0.8, pic = picture(kind, height);
-  const [px, pz] = openSpot(f.x, f.z, pic.r + B.gapLarge, height, height * BUILD[kind][4]);
-  const r = placeRuin(pic, px, pz, { yaw: 0, tilt: false, sink: 0, kind });
-  r.crackable = true; r.cracks = 0; r.height = height; r.wide = height * BUILD[kind][4]; r.pic = pic.g.children[0];
-  pic.g.traverse(o => { o.userData.ruin = r; });
-  remarkOnBuilding(kind, px, pz); rumble();
+  const start = Math.random() < 0.5 ? "ruin1" : "ruin2", other = start === "ruin1" ? "ruin2" : "ruin1", P = BLD_PARTS[start];
+  const s = BLD_S, cx = P.x + P.w / 2, W = BLD_W * s, H = BLD_H * s, y0 = -(BLD_H - BLD_BASE) * s, x0 = -cx * s;
+  const cv = document.createElement("canvas"); cv.width = Math.round(BLD_W * BLD_RES); cv.height = Math.round(BLD_H * BLD_RES);
+  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+  const geo = new THREE.PlaneGeometry(W, H); geo.translate(x0 + W / 2, y0 + H / 2, 0);
+  const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide }));
+  const g = new THREE.Group(); g.add(m);
+  const [px, pz] = openSpot(f.x, f.z, P.w * s * 0.35 + CFG.buildings.gapLarge, BLD_BASE * s, P.w * s);
+  const r = placeRuin({ g, r: P.w * s * 0.35 }, px, pz, { yaw: 0, tilt: false, sink: 0, kind: "collage" });
+  Object.assign(r, { crackable: true, cracks: 0, pic: m, tex, ctx: cv.getContext("2d"), parts: new Set([start]), queue: [[other], ["tower", "shop"], ["floor"]],
+    x0, y0, W, H, height: P.h * s });
+  r.uvOf = (lx, ly) => [(lx - x0) / W, (ly - y0) / H];
+  r.solidAt = (u, v) => { const d = r.alphaData; if (!d) return true; const cw = cv.width, ch = cv.height, i = (Math.min(ch - 1, Math.max(0, Math.floor((1 - v) * ch))) * cw + Math.min(cw - 1, Math.max(0, Math.floor(u * cw)))) * 4; return d[i + 3] > 127; };
+  drawBuilding(r);
+  g.traverse(o => { o.userData.ruin = r; });
+  remarkOnBuilding("collage", px, pz); rumble();
 }
 // a black tear in the face of the building, around the place it was tapped (in the building's own flat face)
 function crackShape(len, wid) {
@@ -1003,18 +1037,18 @@ function crackShape(len, wid) {
 function crackBuilding(r, point) {
   if (!r.crackable || r.cracks >= CRACKS_MAX || r.going != null) return;
   r.cracks++;
-  const local = r.g.worldToLocal(point.clone());
-  const geo = crackShape(r.height * rnd(0.45, 0.6), r.height * rnd(0.1, 0.15)), px = local.x, py = Math.max(r.height * 0.15, local.y);
+  const local = r.g.worldToLocal(point.clone()), size = r.height;
+  const geo = crackShape(size * rnd(0.45, 0.6), size * rnd(0.1, 0.15)), px = local.x, py = local.y;
   // the tear is cut only where the building is: it is drawn with the building's own picture, in black, so it stops at its outline
-  const [u, v, w, hh] = BUILD[r.kind], pos = geo.attributes.position, uv = geo.attributes.uv;
-  for (let i = 0; i < pos.count; i++) uv.setXY(i, u + ((px + pos.getX(i)) / r.wide + 0.5) * w, v + ((py + pos.getY(i)) / r.height) * hh);
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) { const [u, v] = r.uvOf(px + pos.getX(i), py + pos.getY(i)); uv.setXY(i, u, v); }
   uv.needsUpdate = true;
-  const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x050403, map: r.pic.material.map, alphaTest: 0.5, side: THREE.DoubleSide }));
-  m.position.set(px, py, 0.02); m.renderOrder = 2; r.g.add(m);
+  const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x050403, map: r.tex, alphaTest: 0.5, side: THREE.DoubleSide }));
+  m.position.set(px, py, 0.02); m.renderOrder = 2; m.userData.ruin = r; r.g.add(m); // tapping the tear counts as tapping the building
   // the tear opens, then the creature comes through it: it starts small inside the crack, on the face of the building,
   // and grows as it pushes out towards you; a crane flies on from there, a frog or a caterpillar drops to the ground
   m.scale.setScalar(0.15); later(0.07, () => m.scale.setScalar(0.55)); later(0.15, () => m.scale.setScalar(0.85)); later(0.24, () => m.scale.setScalar(1));
-  const fly = Math.random() < 0.5, cx = r.x + m.position.x, cy = m.position.y + r.g.position.y, cz = r.z + 0.05;
+  const fly = Math.random() < 0.5, cx = r.x + m.position.x, cy = Math.max(0.4, m.position.y + r.g.position.y), cz = r.z + 0.05;
   later(0.32, () => {
     if (!ruins.includes(r)) return;
     const g = randomGenome(), T = MAPS.length, tile = Math.floor(rnd(0, T));
@@ -1023,6 +1057,14 @@ function crackBuilding(r, point) {
     const to = new THREE.Vector3(rnd(-0.6, 0.6), 0, 1).normalize(), d = fly ? rnd(3.5, 5.5) : rnd(1.6, 2.6);
     c.launch = { t: 0, dur: fly ? 1.3 : 0.9, fx: cx, fz: cz, tx: cx + to.x * d, tz: cz + to.z * d, h: fly ? 1.5 : 0.4, y0: cy, grow: true };
     c.yaw = Math.atan2(to.x, to.z); c.wand = c.yaw;
+  });
+  // and the building grows its next piece, which comes in over a moment
+  const next = r.queue.shift();
+  if (next) later(0.5, () => {
+    if (!ruins.includes(r)) return;
+    next.forEach(k => r.parts.add(k));
+    [0.25, 0.5, 0.75].forEach((a, i) => later(0.08 * i, () => drawBuilding(r, { parts: next, a })));
+    later(0.24, () => drawBuilding(r)); rumble();
   });
   if (!playSound(CRACK, 0.5)) pop(); buzz([14, 30, 20]);
 }
@@ -1241,142 +1283,11 @@ function startDeath(c) {
   c.dying = { t: 0, tilt: rnd(-0.7, 0.7) };
 }
 
-const INK = 0x2f2d2a, _Line = THREE.LineBasicMaterial;
-// ---------- what the dead leave behind: ruins ----------
-// Where a creature dies its sheet lies on the sand for a moment, and a piece of architecture rises out of the
-// ground and stays: rubble and column drums from the small ones, a broken wall with arched windows from a
-// walker, an octagonal pavilion from a crane, a fluted minaret tier from a rolling star. A star that dies
-// beside a minaret adds a narrower tier on top of it, so towers grow storey by storey.
-const RUIN_COL = { buff: 0xedc596, sand: 0xe0a877, red: 0xc0653f, deep: 0x9c4b2e, dome: 0x7d5a45 };
+// ---------- buildings ----------
+// Every building is your collage (riseFromFusion, above): it rises out of the ground and stays. The old buildings (the
+// modelled ruins, and the pictures cut from photographs) are gone.
 const RUIN_CAP = 140;
 const ruins = [];
-const outlineMat = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
-const voidMat = new THREE.MeshBasicMaterial({ color: 0x0d0805, side: THREE.DoubleSide });
-const edgeMat = new _Line({ color: INK, transparent: true, opacity: 0.85 });
-// a solid with a thick ink outline (an inverted shell) and its creases inked
-function inked(geo, color, crease = 28, line = 0.035) {
-  const g = new THREE.Group();
-  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, flatShading: true }));
-  m.castShadow = SHADOWS; m.receiveShadow = true; g.add(m);
-  geo.computeBoundingSphere();
-  const bs = geo.boundingSphere, s = 1 + line / Math.max(0.15, bs.radius);
-  const o = new THREE.Mesh(geo, outlineMat); o.scale.setScalar(s); o.position.copy(bs.center).multiplyScalar(1 - s);
-  g.add(o, new THREE.LineSegments(new THREE.EdgesGeometry(geo, crease), edgeMat));
-  return g;
-}
-// knock the corners about so cut stone looks worn
-function chip(geo, amt) {
-  const a = geo.attributes.position, off = new Map();
-  for (let i = 0; i < a.count; i++) {
-    const key = `${a.getX(i).toFixed(3)},${a.getY(i).toFixed(3)},${a.getZ(i).toFixed(3)}`;
-    if (!off.has(key)) off.set(key, [rnd(-amt, amt), rnd(-amt, amt), rnd(-amt, amt)]);
-    const d = off.get(key); a.setXYZ(i, a.getX(i) + d[0], a.getY(i) + d[1], a.getZ(i) + d[2]);
-  }
-  geo.computeVertexNormals(); return geo;
-}
-function archPath(p, x, y, w, h) { // an arch-topped opening, clockwise
-  const r = w / 2;
-  p.moveTo(x - r, y); p.lineTo(x - r, y + h - r); p.absarc(x, y + h - r, r, Math.PI, 0, true); p.lineTo(x + r, y); p.lineTo(x - r, y);
-}
-function archVoid(w, h) { const s = new THREE.Shape(); archPath(s, 0, 0, w, h); return new THREE.Mesh(new THREE.ShapeGeometry(s, 10), voidMat); }
-
-// a block of stone, chipped
-function block(w, h, d, color) { return inked(chip(new THREE.BoxGeometry(w, h, d), Math.min(w, h, d) * 0.12), color); }
-// a fallen column drum
-function drum(r, h, color) {
-  const g = inked(chip(new THREE.CylinderGeometry(r, r * 1.04, h, 12), r * 0.06), color, 40);
-  g.rotation.z = Math.PI / 2; g.position.y = r * 0.85; return g;
-}
-// a heap of rubble
-function rubble(s) {
-  const g = new THREE.Group(), n = 3 + Math.floor(rnd(0, 4));
-  for (let i = 0; i < n; i++) {
-    const w = rnd(0.35, 0.8) * s, hh = rnd(0.25, 0.6) * s, d = rnd(0.3, 0.7) * s;
-    const b = block(w, hh, d, pick([RUIN_COL.buff, RUIN_COL.sand, RUIN_COL.red]));
-    b.position.set(rnd(-0.6, 0.6) * s, hh * rnd(0.2, 0.5), rnd(-0.6, 0.6) * s); b.rotation.set(rnd(-0.4, 0.4), rnd(0, 6.28), rnd(-0.4, 0.4));
-    g.add(b);
-  }
-  if (Math.random() < 0.5) { const d = drum(0.28 * s, 0.6 * s, RUIN_COL.buff); d.position.x += rnd(-0.5, 0.5) * s; d.rotation.y = rnd(0, 6.28); g.add(d); }
-  return { g, r: 0.9 * s };
-}
-// a broken wall: a jagged top, arched windows and sometimes a doorway, all black inside
-function wall(s, color) {
-  const W = rnd(2.2, 3.4) * s, H = rnd(1.8, 2.8) * s, D = 0.42 * s, sh = new THREE.Shape();
-  sh.moveTo(-W / 2, 0); sh.lineTo(W / 2, 0);
-  const steps = 7; let y = H * rnd(0.55, 1);
-  sh.lineTo(W / 2, y);
-  for (let i = steps - 1; i >= 0; i--) { y = Math.max(H * 0.45, Math.min(H, y + rnd(-0.35, 0.35) * H)); sh.lineTo(-W / 2 + W * i / steps + rnd(-0.05, 0.05) * W, y); }
-  sh.lineTo(-W / 2, 0);
-  const geo = new THREE.ExtrudeGeometry(sh, { depth: D, bevelEnabled: false, curveSegments: 6 });
-  geo.translate(0, 0, -D / 2);
-  const g = new THREE.Group(), body = inked(chip(geo, 0.03 * s), color, 30);
-  g.add(body);
-  const openings = [];
-  if (Math.random() < 0.6) openings.push([rnd(-0.15, 0.15) * W, 0, W * 0.3, H * 0.62]);
-  const nWin = 1 + Math.floor(rnd(0, 3));
-  for (let i = 0; i < nWin; i++) openings.push([(i + 0.5) / nWin * W * 0.8 - W * 0.4, H * rnd(0.55, 0.7), W * 0.07, H * 0.14]);
-  for (const [x, y0, w, hh] of openings) for (const side of [-1, 1]) {
-    if (y0 > 0 && y0 + hh > H * 0.45) continue; // no window through the broken top
-    const v = archVoid(w, hh); v.position.set(x, y0, side * (D / 2 + 0.006)); g.add(v);
-  }
-  // fallen blocks at its foot
-  for (let i = 0; i < 3; i++) { const b = block(rnd(0.3, 0.6) * s, rnd(0.25, 0.5) * s, rnd(0.3, 0.5) * s, color); b.position.set(rnd(-0.5, 0.5) * W, 0.12 * s, (Math.random() < 0.5 ? -1 : 1) * rnd(0.4, 0.9) * s); b.rotation.set(rnd(-0.4, 0.4), rnd(0, 6.28), rnd(-0.3, 0.3)); g.add(b); }
-  return { g, r: W * 0.5 };
-}
-// an open pavilion: eight pillars, a deep eave and a dome
-function chhatri(s, onTop) {
-  const g = new THREE.Group(), R = 0.55 * s;
-  if (!onTop) { const base = inked(new THREE.CylinderGeometry(R * 1.15, R * 1.2, 0.18 * s, 8), RUIN_COL.red); base.position.y = 0.09 * s; g.add(base); }
-  const y0 = onTop ? 0 : 0.18 * s, ph = 0.6 * s;
-  for (let i = 0; i < 8; i++) {
-    const a = i / 8 * TAU + Math.PI / 8, p = inked(new THREE.BoxGeometry(0.08 * s, ph, 0.08 * s), RUIN_COL.red);
-    p.position.set(Math.cos(a) * R * 0.9, y0 + ph / 2, Math.sin(a) * R * 0.9); g.add(p);
-  }
-  const eave = inked(new THREE.CylinderGeometry(R * 1.35, R * 1.05, 0.12 * s, 8), RUIN_COL.red); eave.position.y = y0 + ph + 0.06 * s; g.add(eave);
-  const drumG = inked(new THREE.CylinderGeometry(R * 0.85, R * 0.85, 0.12 * s, 16), RUIN_COL.buff); drumG.position.y = y0 + ph + 0.18 * s; g.add(drumG);
-  const dome = inked(new THREE.SphereGeometry(R * 0.85, 16, 10, 0, TAU, 0, Math.PI / 2), RUIN_COL.dome, 50); dome.position.y = y0 + ph + 0.24 * s; dome.scale.y = 1.15; g.add(dome);
-  const fin = inked(new THREE.ConeGeometry(0.05 * s, 0.3 * s, 6), RUIN_COL.deep); fin.position.y = y0 + ph + 0.24 * s + R * 0.98 + 0.15 * s; g.add(fin);
-  return { g, r: R * 1.3, top: y0 + ph + 0.24 * s + R };
-}
-// an octagonal two-storey pavilion with arched niches on every face and a chhatri on the roof
-function pavilion(s) {
-  const g = new THREE.Group(), R = 1.25 * s, H1 = 1.1 * s, H2 = 0.9 * s;
-  const lower = inked(chip(new THREE.CylinderGeometry(R, R * 1.03, H1, 8), 0.02 * s), RUIN_COL.red, 20); lower.position.y = H1 / 2; g.add(lower);
-  const band = inked(new THREE.CylinderGeometry(R * 1.02, R * 1.02, 0.1 * s, 8), RUIN_COL.buff); band.position.y = H1 + 0.05 * s; g.add(band);
-  const upper = inked(chip(new THREE.CylinderGeometry(R * 0.96, R * 0.98, H2, 8), 0.02 * s), RUIN_COL.red, 20); upper.position.y = H1 + 0.1 * s + H2 / 2; g.add(upper);
-  const eave = inked(new THREE.CylinderGeometry(R * 1.18, R * 0.98, 0.14 * s, 8), RUIN_COL.deep); eave.position.y = H1 + 0.1 * s + H2 + 0.07 * s; g.add(eave);
-  const apo = R * Math.cos(Math.PI / 8);
-  for (let i = 0; i < 8; i++) {
-    const a = i / 8 * TAU + Math.PI / 8 + Math.PI / 2;
-    for (const [y, hh, w] of [[0.08 * s, H1 * 0.78, R * 0.5], [H1 + 0.2 * s, H2 * 0.72, R * 0.42]]) {
-      const v = archVoid(w, hh); v.position.set(Math.cos(a) * (apo * (y > H1 ? 0.96 : 1) + 0.008), y, Math.sin(a) * (apo * (y > H1 ? 0.96 : 1) + 0.008));
-      v.rotation.y = -a + Math.PI / 2; g.add(v);
-    }
-  }
-  const top = chhatri(s * 0.9, true); top.g.position.y = H1 + 0.1 * s + H2 + 0.14 * s; g.add(top.g);
-  return { g, r: R * 1.15 };
-}
-// one tier of a fluted minaret: alternating round and angular flutes, carved bands, and a corbelled balcony on top
-function minarGeo(r0, r1, h) {
-  const geo = new THREE.CylinderGeometry(r1, r0, h, 96, 6, true), a = geo.attributes.position;
-  for (let i = 0; i < a.count; i++) {
-    const x = a.getX(i), z = a.getZ(i), th = Math.atan2(z, x), k = (th / TAU * 24 + 24) % 2;
-    const flute = k < 1 ? Math.sin(k * Math.PI) * 0.09 : (1 - Math.abs(k - 1.5) * 2) * 0.07; // round, then pointed
-    a.setX(i, x * (1 + flute)); a.setZ(i, z * (1 + flute));
-  }
-  geo.computeVertexNormals(); return geo;
-}
-function minarTier(r0, h, color) {
-  const r1 = r0 * 0.86, g = new THREE.Group();
-  const body = inked(minarGeo(r0, r1, h), color, 60); body.position.y = h / 2; g.add(body);
-  for (const f of [0.3, 0.62]) {
-    const rr = lerp(r0, r1, f) * 1.07, b = inked(new THREE.CylinderGeometry(rr, rr, h * 0.06, 32), RUIN_COL.buff, 40); b.position.y = h * f; g.add(b);
-  }
-  const corbel = inked(new THREE.CylinderGeometry(r1 * 1.45, r1 * 1.02, h * 0.16, 24), RUIN_COL.deep, 40); corbel.position.y = h + h * 0.08; g.add(corbel);
-  const deck = inked(new THREE.CylinderGeometry(r1 * 1.48, r1 * 1.48, h * 0.04, 24), color, 40); deck.position.y = h + h * 0.18; g.add(deck);
-  for (let i = 0; i < 10; i++) { const a = i / 10 * TAU, p = inked(new THREE.BoxGeometry(r1 * 0.12, h * 0.08, r1 * 0.12), color); p.position.set(Math.cos(a) * r1 * 1.4, h * 0.24, Math.sin(a) * r1 * 1.4); g.add(p); }
-  return { g, top: h * 1.2, r1 };
-}
 function placeRuin(obj, x, z, opts = {}) {
   const g = obj.g;
   const P = opts.parentRuin; // a tier is carried by the minaret it sits on
@@ -1390,39 +1301,6 @@ function placeRuin(obj, x, z, opts = {}) {
   ruins.push(r);
   if (ruins.filter(q => q.going == null && !q.parent).length > RUIN_CAP) { const old = ruins.find(q => q.going == null && !q.parent); if (old) old.going = 0; }
   return r;
-}
-// What rises where a creature dies is now one of four pictures, stood upright on the paper like the people:
-// a carved marble finial, a three-arched arcade, a tree, a small clay house. (The modelled ruins above are no longer used.)
-// Every building is now one part cut from two photographs: an arcade wall, a window bay, a little cupola, a kiosk,
-// the top of a domed tomb, the two wings and the great doorway of a gateway, and a minaret. One sheet holds them all.
-const PARTS_TEX = new THREE.TextureLoader().load("parts.webp"); PARTS_TEX.encoding = THREE.sRGBEncoding; PARTS_TEX.anisotropy = 4;
-const sheet = f => { const t = new THREE.TextureLoader().load(f); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t; };
-const TREE_TEX = sheet("tree.webp"), OLD_TEX = sheet("build.webp"), RED_MINARET_TEX = sheet("minaret.webp"), OLD_TEX2 = sheet("build2.webp");
-const BUILD = { // where each sits on the sheet: u, v, width, height, and its width-to-height
-  tree: [0, 0, 1, 1, 0.696, 1], // the tree keeps a picture of its own
-  // the earlier pictures, still on their own sheets: the ivory finial, the clay house, the coloured arcade, the red minaret,
-  // the broken wall, the battlement and the ruined gateway
-  finial: [0.10390625, 0.503125, 0.2921875, 0.49375, 0.592, 2], arcade: [0.503125, 0.503125, 0.49375, 0.3015625, 1.637, 2],
-  house: [0.5046875, 0.003125, 0.48984375, 0.49375, 0.992, 2],
-  minaret: [0.08203125, 0, 0.83203125, 1, 0.208, 3],
-  ruin: [0.00313, 0.50313, 0.49375, 0.26484, 1.864, 4], rampart: [0.50313, 0.50313, 0.49375, 0.41328, 1.195, 4], gate: [0.03672, 0.00313, 0.42656, 0.49375, 0.864, 4],
-  domeTop: [0.0, 0.57227, 0.26904, 0.42773, 1.258],
-  tower: [0.27197, 0.61133, 0.04346, 0.38867, 0.224],
-  iwan: [0.31836, 0.61426, 0.16406, 0.38574, 0.851],
-  wingL: [0.48535, 0.6875, 0.10205, 0.3125, 0.653],
-  wingR: [0.59033, 0.69336, 0.12354, 0.30664, 0.806],
-  arcadeWall: [0.0, 0.26758, 0.2915, 0.29883, 1.951],
-  bay: [0.29443, 0.26758, 0.0835, 0.29883, 0.559],
-  kiosk: [0.38086, 0.29492, 0.0752, 0.27148, 0.554],
-  cupola: [0.45898, 0.49512, 0.04883, 0.07129, 1.37],
-};
-function picture(kind, height) {
-  const [u, v, w, hh, asp, own] = BUILD[kind], wide = height * asp;
-  const geo = new THREE.PlaneGeometry(wide, height); geo.translate(0, height / 2, 0);
-  const uv = geo.attributes.uv; uv.setXY(0, u, v + hh); uv.setXY(1, u + w, v + hh); uv.setXY(2, u, v); uv.setXY(3, u + w, v);
-  const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: [PARTS_TEX, TREE_TEX, OLD_TEX, RED_MINARET_TEX, OLD_TEX2][own || 0], alphaTest: 0.5, side: THREE.DoubleSide }));
-  const g = new THREE.Group(); g.add(m);
-  return { g, r: Math.min(wide * 0.3, kind === "tower" || kind === "tree" || kind === "minaret" ? 0.5 : 2) };
 }
 // Buildings keep their distance. If the place a creature fell is too close to one already standing, the new one
 // rises at the most open spot a short way off instead, so they spread over the page and don't pile up.
@@ -1441,17 +1319,6 @@ function openSpot(x, z, gap, tall = 3, wide = 3) {
   }
   return best;
 }
-function leaveRuin(c) {
-  const s = Math.max(0.35, c.p.bulk * c.grow);
-  let kind, height;
-  const roll = (odds) => { let k = Math.random(); for (const [name, p] of odds) { if ((k -= p) < 0) return name; } return odds[0][0]; };
-  const B = CFG.buildings, odds = Object.entries(c.large ? B.fromLarge : B.fromSmall).filter(([k, p]) => BUILD[k] && p > 0), sum = odds.reduce((a, [, p]) => a + p, 0) || 1;
-  kind = roll(odds.length ? odds.map(([k, p]) => [k, p / sum]) : [["kiosk", 1]]); // the odds needn't add up to 1: they are shares
-  height = rnd(...((c.large ? B.heightLarge : B.heightSmall)[kind] || [3, 4])) * (kind === "cupola" || kind === "finial" ? 0.6 + 0.4 * s : 1);
-  const pic = picture(kind, height), [px, pz] = openSpot(c.x, c.z, pic.r + (c.large ? CFG.buildings.gapLarge : CFG.buildings.gapSmall), height, height * BUILD[kind][4]);
-  placeRuin(pic, px, pz, { yaw: 0, tilt: false, sink: 0, kind });
-  remarkOnBuilding(kind, px, pz);
-}
 // keep things from walking through a ruin
 function pushOutOfRuins(o, pad) {
   for (const r of ruins) {
@@ -1461,21 +1328,7 @@ function pushOutOfRuins(o, pad) {
   }
 }
 function leaveSheet(c) {
-  tileFromDeath(c); return; // a dying creature leaves no building and nothing else: on the green it lays a tile, and a person steps out of it (transitions.js, 4b)
-  const sz = (1.5 * c.p.bulk + 0.7) * c.grow;
-  const mat = new THREE.MeshStandardMaterial({ color: c.color, map: c.mat.map, side: THREE.DoubleSide, transparent: true });
-  const sheet = new THREE.Mesh(new THREE.PlaneGeometry(sz, sz), mat);
-  sheet.rotation.set(-Math.PI / 2, 0, rnd(0, 6.28)); sheet.position.set(c.x, 0.02, c.z); sheet.receiveShadow = true;
-  const hh = sz / 2, pts = [-hh, -hh, hh, hh, -hh, hh, hh, -hh, 0, -hh, 0, hh, -hh, 0, hh, 0];
-  for (let i = 0; i < 4; i++) { const a = rnd(0, 6.28), o = rnd(-hh * 0.6, hh * 0.6); pts.push(-hh, o + Math.sin(a) * hh * 0.4, hh, o - Math.sin(a) * hh * 0.4); }
-  const lp = []; for (let i = 0; i < pts.length; i += 2) lp.push(pts[i], pts[i + 1], 0.003);
-  const lg = new THREE.BufferGeometry(); lg.setAttribute("position", new THREE.Float32BufferAttribute(lp, 3));
-  const lineMat = new THREE.LineBasicMaterial({ opacity: 0.8 });
-  sheet.add(new THREE.LineSegments(lg, lineMat));
-  scene.add(sheet);
-  scraps.push({ sheet, mat, lineMat, t: 0 });
-  leaveRuin(c);
-  rumble();
+  tileFromDeath(c); // a dying creature leaves no building and nothing else: on the green it lays a tile, and a person steps out of it (transitions.js, 4b)
 }
 function rumble() { // stone grinding up through sand
   const A = audio(); if (!A) return; const t = A.currentTime + 0.1;
@@ -1487,7 +1340,7 @@ function rumble() { // stone grinding up through sand
 function disposeRuin(r) {
   scene.remove(r.g);
   (r.parent ? r.parent.g : scene).remove(r.g);
-  r.g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material !== outlineMat && o.material !== voidMat && o.material !== edgeMat) o.material.dispose(); });
+  r.g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map && o.material.map.isCanvasTexture && o === r.pic) o.material.map.dispose(); o.material.dispose(); } });
 }
 function updateStains(dt) {
   // ruins rise out of the sand, settle a little low, and (past the cap) the oldest sink away again
@@ -1622,7 +1475,7 @@ cv.addEventListener("pointerdown", ev => {
   const hit = pick3(ev.clientX, ev.clientY, [...cells.filter(o => o.held == null && !o.fusing).flatMap(o => o.orb ? [o.disc] : o.figs.filter(m => m.visible)), ...creatures.map(c => c.body), ...ruins.filter(r => r.crackable && r.going == null).map(r => r.g)]);
   if (hit) {
     let o = hit.object; while (o && !o.userData.cell && !o.userData.creature) o = o.parent;
-    if (o == null && hit.object.userData.ruin) { crackBuilding(hit.object.userData.ruin, hit.point); pointers.set(ev.pointerId, rec); return; } // a tap cracks a building open
+    if (o == null && hit.object.userData.ruin) { const r = hit.object.userData.ruin; if (!r.solidAt || !hit.uv || r.solidAt(hit.uv.x, hit.uv.y)) crackBuilding(r, hit.point); pointers.set(ev.pointerId, rec); return; } // a tap on a building cracks it open
     if (o && o.userData.cell && !o.userData.cell.orb) popPerson(o.userData.cell); // people aren't squeezed: a touch pops them
     else if (o && o.userData.cell) { const cell = o.userData.cell; cell.held = ev.pointerId; rec.cell = cell; squeezeStart(cell); buzz(8); }
     else if (o && o.userData.creature) { const c = o.userData.creature; if (!c.launch && c.leaving == null && !c.meeting && !c.dying) { c.launch = { t: 0, dur: 0.5, fx: c.x, fz: c.z, tx: c.x, tz: c.z, h: 1.4 }; rustle(0); } }
@@ -1787,17 +1640,6 @@ function buildStream() {
   streamMat.uniforms.drawn.value = 0; streamMat.uniforms.wid.value = 0.2 * hw;
 }
 const vnoise1 = x => { const i = Math.floor(x), f = x - i, h = n => { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); }; const u = f * f * (3 - 2 * f); return h(i) * (1 - u) + h(i + 1) * u; };
-// the green page has buildings on it already: a great doorway beside where the person will stop, a minaret off to the left
-const archRuins = [];
-function placeArchitecture() {
-  const h = FIG_H * CFG.people.firstSize, z = arrival.zP;
-  for (const [kind, hk, xk, dz] of [["iwan", 0.95, 0.56, 0.3], ["minaret", 1.1, -0.66, 0.9]]) {
-    if (!BUILD[kind]) continue;
-    const pic = picture(kind, h * hk);
-    placeRuin(pic, camHW * xk, z - pic.r - dz, { yaw: 0, tilt: false, sink: 0, kind });
-    archRuins.push(ruins[ruins.length - 1]);
-  }
-}
 function updateArrival(dt) {
   if (arrival.stage === "off" || arrival.stage === "free") return;
   arrival.t += dt;

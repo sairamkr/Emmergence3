@@ -77,7 +77,11 @@ const GLSL_CELL_INTRO = `      if (mode == 0) {
         float front = min(abs(d - rin), abs(d - rout)) / 60.0;
         float th = mix(0.97, 0.7, clamp(front, 0.0, 1.0));
         if (m > 0.0) { col = mix(col, texture2D(delhi, cover(sp, 1080.0 / 1438.0, 1.0)).rgb, m * rim); lc = vec3(0.82, 0.8, 0.76); ink = lines((p - centre) / tile + seed * 0.37, th) * m * (1.0 - rim); }`;
-const GLSL_CELL_TISSUE = `      } else {
+const GLSL_CELL_TISSUE = `      } else if (jaliT > 0.0 && jStage > 3.5) {
+        // the four jali pieces cover the card: the cells are gone for good, and nothing is worked out for them any more.
+        // Wherever the jali or what follows does not cover, it is black
+        col = vec3(0.02, 0.016, 0.015);
+      } else {
         // the tissue is a Voronoi diagram: each point belongs to the nearest cell centre (a squeezed cell stretched along
         // its squeeze). Each cell is drawn pulled in from its walls, its corners rounded and its edge a little wobbly, so
         // black shows between them, and through each one shows part of one of the two jali photographs, chosen at random
@@ -104,6 +108,7 @@ const GLSL_CELL_TISSUE = `      } else {
             if (big && B[j].w < 1.5) continue;                                       // no wall inside the big cell
             vec2 o = A[j].xy - ct.xy; float L = length(o);
             if (L < 0.5) continue;
+            if (0.5 * L - length(p - ct.xy) - 0.5 * abs(bt.z - B[j].z) > 14.0 * kr) continue;   // too far to shape this wall at all (its share would be under a millionth)
             acc += exp(-(0.5 * L - dot(p - ct.xy, o / L) + 0.5 * (bt.z - B[j].z)) / kr);
           }
           float edge = -kr * log(max(acc, 1e-30));
@@ -158,7 +163,6 @@ function startMicro() {
   FR.kind = "cell"; FR.grow = 0; updateFrame(0, true); archEl.classList.remove("in"); if (mapBeast) { destroyBody(mapBeast); mapBeast = null; }
   micro.cut = { x: 0, y: 0, r: 1, a: 0 }; arrival.twins = null;
   micro.layers = { t: [-1, -1, -1, -1] }; microMat.uniforms.fillAmt.value = 0; microMat.uniforms.rev.value.set(0, 0, 0, 0);
-  for (const r of archRuins.splice(0)) { const i = ruins.indexOf(r); if (i >= 0) { disposeRuin(r); ruins.splice(i, 1); } }
   micro.phase = "tissue"; micro.t = 0; micro.cells.length = 0; micro.held = null; micro.hideOrb = true; micro.cover = 0; micro.waitZoom = 0; micro.squeezed = false;
   micro.seed = rnd(0, 40); microMat.uniforms.wrap.value = 0; introZoom = 1; introCX = introCZ = 0; fitCamera(); hint(""); microMat.uniforms.dissolve.value = -1; walkedIn = 0; enterWait = 0.7; seedTiling(); hint("press and hold");
   arrival.stage = "off"; arrival.person = null; if (arrival.stream) { scene.remove(arrival.stream); arrival.stream.geometry.dispose(); arrival.stream = null; }
@@ -298,19 +302,21 @@ function updateMicro(dt) {
   // the tiling is soft: each cell has a weight on a spring (a new cell grows in from nothing, a split cell wobbles like jelly,
   // the cell under a finger swells a little), and after a split the centres relax toward the middles of their cells
   const cs = micro.cells, P = micro.ptr;
-  let under = null;
-  if (P && P.on) { let bd = 1e9; for (const c of cs) { const d = Math.hypot(c.x - P.x, c.y - P.y) - (c.w || 0); if (d < bd) { bd = d; under = c; } } }
-  for (const c of cs) {
-    const target = c === under ? c.r * (P.down ? 0.22 : 0.1) : 0;
-    c.wv = (c.wv || 0) + ((target - (c.w || 0)) * 70 - c.wv * 9) * dt; c.w = (c.w || 0) + c.wv * dt;
+  if (!cellsGone()) { // once the four jali pieces cover the card the cells are gone: no more swelling, settling or moving
+    let under = null;
+    if (P && P.on) { let bd = 1e9; for (const c of cs) { const d = Math.hypot(c.x - P.x, c.y - P.y) - (c.w || 0); if (d < bd) { bd = d; under = c; } } }
+    for (const c of cs) {
+      const target = c === under ? c.r * (P.down ? 0.22 : 0.1) : 0;
+      c.wv = (c.wv || 0) + ((target - (c.w || 0)) * 70 - c.wv * 9) * dt; c.w = (c.w || 0) + c.wv * dt;
+    }
+    if ((micro.relax -= dt) > 0 && (micro.relaxTick -= dt) <= 0) { micro.relaxTick = 0.12; relaxSeeds(); }
+    for (const c of cs) {
+      if (c === micro.held) { c.u = Math.min(1, c.u + dt / 0.75); if (c.u >= 1) { microSplit(c); break; } }
+      else c.u = Math.max(0, c.u - dt * 4);
+      const k = 1 - Math.exp(-dt * 7); c.x += (c.tx - c.x) * k; c.y += (c.ty - c.y) * k;
+    }
+    cs.forEach((c, i) => { microCellsA[i].set(c.x, c.y, c.r * (1 + 0.25 * c.u), c.r * (1 - 0.2 * c.u)); microCellsB[i].set(c.seed, c.pu, c.w || 0, 2 + 2 * (c.map || 0) + c.pv); });
   }
-  if ((micro.relax -= dt) > 0 && (micro.relaxTick -= dt) <= 0) { micro.relaxTick = 0.12; relaxSeeds(); }
-  for (const c of cs) {
-    if (c === micro.held) { c.u = Math.min(1, c.u + dt / 0.75); if (c.u >= 1) { microSplit(c); break; } }
-    else c.u = Math.max(0, c.u - dt * 4);
-    const k = 1 - Math.exp(-dt * 7); c.x += (c.tx - c.x) * k; c.y += (c.ty - c.y) * k;
-  }
-  cs.forEach((c, i) => { microCellsA[i].set(c.x, c.y, c.r * (1 + 0.25 * c.u), c.r * (1 - 0.2 * c.u)); microCellsB[i].set(c.seed, c.pu, c.w || 0, 2 + 2 * (c.map || 0) + c.pv); });
   u.mode.value = 1; u.n.value = cs.length;
   if (micro.phase === "tissue") {
     runChains(dt);

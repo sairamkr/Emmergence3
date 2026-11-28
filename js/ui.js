@@ -18,13 +18,9 @@ function applySettings(next, keep = true) {
   const odds = document.getElementById("cfgOdds"), jsonTab = document.getElementById("cfgJson");
   const NAMES = { tree: "Tree", finial: "Ivory finial", house: "Clay house", arcade: "Arcade", minaret: "Red minaret", ruin: "Broken wall", rampart: "Battlement", gate: "Gateway", cupola: "Cupola", kiosk: "Kiosk", bay: "Window bay", arcadeWall: "Arcade wall", wingL: "Left wing", wingR: "Right wing", tower: "Grey minaret", iwan: "Great doorway", domeTop: "Dome" };
   const TINT = { tree: "#5c7a55", finial: "#e8dcc0", house: "#c46b3c", arcade: "#b08a52", minaret: "#8f3b33", ruin: "#d9b98a", rampart: "#7d5f48", gate: "#d48f86", cupola: "#cfc9bf", kiosk: "#9a958d", bay: "#7a756e", arcadeWall: "#55524d", wingL: "#b5b0a8", wingR: "#8c877f", tower: "#e3ddd2", iwan: "#3f3c38", domeTop: "#2c2a27" };
-  const GROUPS = [
-    ["fromSmall", "What a small creature leaves", "Slide to change each one’s share. The percentages always add up to 100."],
-    ["fromLarge", "What a large creature leaves", ""],
-  ];
+  const GROUPS = []; // (the old building odds are gone: every building is the collage)
   const CHANCES = [
     [() => CFG.watercolour, "strength", "Watercolour", "How strongly the watercolour is painted over everything. The finer controls are in All settings."],
-    [() => CFG.creatures, "birdChance", "Bird", "How often four people turn into a bird; the rest become walkers or rolling stars."],
     ...!TALK_ON ? [] : [[() => CFG.speech, "onSplit", "Talk: split", "How often someone speaks when the circle splits or a person pops."]],
     ...!TALK_ON ? [] : [[() => CFG.speech, "onBuilding", "Talk: building", "How often whoever is nearest remarks on a building as it rises."]],
     ...!TALK_ON ? [] : [[() => CFG.speech, "replyChance", "Replies", "How often somebody nearby answers."]],

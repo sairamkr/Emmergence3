@@ -1,8 +1,8 @@
 // ====================================================================================================================
 // JALI SEQUENCE: after the grey, each press lays a big torn piece of carved stone jali. Presses 1-4 build the card
 // up left to right (your panel Layer_1, the old warm jali, Humayun's tomb, your panel Layer_2) until it is all jali.
-// Presses 5-8: the whole camera glides on right, the cells that went off the left come round on the right, and one more
-// torn piece goes down at the frontier each press. The knuckle-crack plays on every press.
+// Presses 5-8: the whole camera glides on right, and one more torn piece goes down at the frontier each press; past it
+// is black (the cells are gone once the four pieces cover the card). The knuckle-crack plays on every press.
 //
 // Comes from: transitions.js, 2 ("cells -> jali": jaliReady() says when the presses belong here).
 // Hands over to: transitions.js, 4 ("jali -> environment": presses 9 and 10, once jaliPress() says the jali is done).
@@ -18,13 +18,9 @@ const panPx = (p = micro.jPan || 0, z = micro.zk || 1) => p * FR.w / z;
 // where the camera should be, in card widths: still for presses 1-4, then on right to keep each new piece's frontier in
 // sight (presses 5-8), then wherever the transition wants it (envPanTarget() in transitions.js)
 const panTarget = () => { const st = micro.jStage || 0; return st <= 4 ? 0 : st <= JALI_PRESSES ? 0.65 + 0.42 * (st - 5) : envPanTarget(st); };
-// as the camera moves on: the cells now gone off the left (under the jali) come round to fill the strip about to come in
-// on the right, and the tiling settles round them
-function bringCellsRound() {
-  const z = zoomTarget(), W = FR.w / z, L = FR.x + FR.w / 2 + panPx(panTarget(), z) - W / 2;
-  for (const c of micro.cells) { if (c.tx >= L) continue; while (c.tx < L) c.tx += W; c.x = c.tx; c.ty += rnd(-0.04, 0.04) * W; c.y = c.ty; }
-  micro.relax = 3.5; micro.relaxTick = 0;
-}
+// once the four jali pieces cover the card, the cells are gone for good: nothing is worked out for them after that, and
+// wherever the jali (and what follows) does not cover, the background is black
+const cellsGone = () => micro.jaliT >= 0 && (micro.jStage || 0) >= 4;
 // how much further back the view sits once the jali opens (used by zoomTarget() in cell-sequence.js)
 const jaliZoom = () => (micro.jaliT >= 0 ? 0.86 : 1); // and back a little more as the jali opens
 
@@ -46,10 +42,9 @@ function updateJali(dt, u) {
 // a press, once the grey has come (called from microPointer() in cell-sequence.js)
 function jaliPress(ev) {
   if ((micro.jStage || 0) >= JALI_PRESSES) return false;   // the jali is done: the press is the transition's (transitions.js, 4)
-  // four presses: four big torn pieces of jali, left to right, until the card is all jali; then presses 5-8 move on right
-  // and lay one more piece at the frontier
+  // four presses: four big torn pieces of jali, left to right, until the card is all jali (and the cells are gone); then
+  // presses 5-8 move on right and lay one more piece at the frontier, black beyond it
   micro.jStage = (micro.jStage || 0) + 1; if (micro.jaliT < 0) micro.jaliT = 0;
-  if (micro.jStage > 4) bringCellsRound();
   if (!playSound(CRACK, 0.6)) pop(); // the stone cracking open
   buzz([12, 40, 20]);
   return true;
