@@ -6,7 +6,7 @@
 // shared declarations: every uniform any piece uses, noise, colours
 const GLSL_DECLARATIONS = `uniform sampler2D field; uniform sampler2D maps; uniform vec2 res; uniform float dpr; uniform int mode; uniform int n;
     uniform vec4 A[${MICRO_MAX}]; uniform vec4 B[${MICRO_MAX}];
-    uniform vec2 centre; uniform float rin, rout, rim; uniform vec2 orbC; uniform float orbR, k, tissueA, bgA, seed, tile, dissolve; uniform float wrap; uniform float cellR; uniform sampler2D delhi, delhi1950, headT, jali1, jali2; uniform vec4 rev, zoomL; uniform float fillAmt, tm, torn, gray, jaliT, jaliS, jaliR, jaliI, jaliSweep, jStage; uniform sampler2D jaliFull; uniform vec2 jaliP, jaliPs; uniform vec2 crackP[8]; uniform vec2 crackC[5]; uniform sampler2D jaliOld; uniform int pcN; uniform float jPan, jN; uniform vec4 pcR[16]; uniform vec4 pcA[16]; uniform float pcS[16]; uniform vec3 bgCol;
+    uniform vec2 centre; uniform float rin, rout, rim; uniform vec2 orbC; uniform float orbR, k, tissueA, bgA, seed, tile, dissolve; uniform float wrap; uniform float cellR; uniform sampler2D delhi, delhi1950, headT, jali1, jali2; uniform vec4 rev, zoomL; uniform float fillAmt, tm, torn, gray, jaliT, jaliS, jaliR, jaliI, jaliSweep, jStage; uniform sampler2D jaliFull; uniform vec2 jaliP, jaliPs; uniform vec2 crackP[8]; uniform vec2 crackC[5]; uniform sampler2D jaliOld; uniform sampler2D jaliFine, jaliRock; uniform vec3 jCam; uniform vec4 jFineR[${FINE.length}]; uniform vec2 jFineN[${FINE.length}]; uniform vec4 jRock; uniform int pcN; uniform float jPan, jN; uniform vec4 pcR[16]; uniform vec4 pcA[16]; uniform float pcS[16]; uniform vec3 bgCol;
     uniform vec4 win; uniform float mapOff, cutR, cutA, cutP, hole, lift; uniform vec2 cutC;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -19,7 +19,7 @@ const GLSL_DECLARATIONS = `uniform sampler2D field; uniform sampler2D maps; unif
     const vec3 OLIVE = vec3(0.84, 0.80, 0.68), OUTL = vec3(0.47, 0.45, 0.42), WHITE = vec3(0.985, 0.98, 0.965);
     const vec3 BEAN = vec3(0.788, 0.298, 0.282), BEANL = vec3(0.86, 0.43, 0.40), CHK = vec3(0.09, 0.08, 0.08), CREAM = vec3(0.93, 0.91, 0.84);
     vec2 rot2(vec2 v, float a){ float c = cos(a), s = sin(a); return vec2(c * v.x + s * v.y, -s * v.x + c * v.y); }
-    uniform sampler2D envStrip, envColumn, envOlive; uniform vec4 jStrip; uniform float envWhite; uniform vec2 envView; uniform float envTileN; uniform vec4 envTiles[${TILE_MAX}]; uniform vec4 envTileUV[${TILE_MAX}];   // transition 4, jali -> environment`;
+    uniform sampler2D envOlive; uniform vec4 jStrip; uniform float envWhite; uniform vec2 envView; uniform float envTileN; uniform vec4 envTiles[${TILE_MAX}]; uniform vec4 envTileUV[${TILE_MAX}];   // transition 4, jali -> environment`;
 const GLSL_HELPERS = `    float lines(vec2 q, float th){ float v = texture2D(field, q).r; float aa = max(fwidth(v) * 0.75, 0.01); return smoothstep(th - aa, th + aa, v); }
     // an image laid over the whole screen (cover-fitted), a little enlarged by z
     vec2 cover(vec2 sp, float asp, float z){ float sc = max(win.z / asp, win.w) * z; return (sp - win.xy - win.zw * 0.5) / (vec2(asp, 1.0) * sc) * vec2(1.0, -1.0) + 0.5; }`;
@@ -79,7 +79,7 @@ const microMat = new THREE.ShaderMaterial({
   GLSL_JALI_TO_ENV,          // transitions
   GLSL_MAIN_CLOSE,           // shader
   ].join("\n"),
-  extensions: { derivatives: true },
+  extensions: { derivatives: true, shaderTextureLOD: true },
 });
 const microScene = new THREE.Scene();
 const microQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), microMat); microQuad.frustumCulled = false; microScene.add(microQuad);

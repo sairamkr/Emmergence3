@@ -16,6 +16,10 @@ function groundTexture() {
 }
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(240, 240), new THREE.MeshStandardMaterial({ map: groundTexture(), roughness: 1 }));
 floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+// on the green tiles the ground above is hidden (the tiles are drawn underneath), so the creatures' shadows fall on this
+// instead: a ground that shows nothing but the shadows on it (only the creatures cast them; people don't)
+const shadowCatcher = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShadowMaterial({ opacity: 0.3 }));
+shadowCatcher.rotation.x = -Math.PI / 2; shadowCatcher.position.y = 0.004; shadowCatcher.receiveShadow = true; shadowCatcher.visible = false; scene.add(shadowCatcher);
 
 // ---------- the paper brood: folded map-paper creatures (from Paper Brood) ----------
 // ---------- paper ----------
@@ -997,16 +1001,26 @@ const BLD_W = 1109, BLD_H = 1412, BLD_BASE = 1000; // the ground line of the two
 const BLD_S = 6 / 485;   // world units per collage pixel: a ruin about a person and a fifth tall
 const BLD_RES = 0.6;     // how finely the building's picture is drawn (of the collage's own pixels)
 const CRACKS_MAX = 5;
-function drawBuilding(r, fade) { // paints the pieces it has so far onto its picture; fade: the newest piece, part way in
-  const x = r.ctx; x.clearRect(0, 0, x.canvas.width, x.canvas.height);
+const BLD_RISE_T = 0.9; // seconds for a piece to come up out of the ground
+function drawBuilding(r) { // paints the pieces it has so far onto its picture; a piece still arriving (r.arrive) rises out of its own base
+  const x = r.ctx, A = r.arrive; x.clearRect(0, 0, x.canvas.width, x.canvas.height);
   for (const k of ["floor", "tower", "ruin1", "ruin2", "shop"]) {
     if (!r.parts.has(k)) continue; const P = BLD_PARTS[k];
     if (!P.img.complete || !P.img.naturalWidth) { P.img.addEventListener("load", () => drawBuilding(r), { once: true }); continue; }
-    x.globalAlpha = fade && fade.parts.includes(k) ? fade.a : 1;
-    x.drawImage(P.img, P.x * BLD_RES, P.y * BLD_RES, P.w * BLD_RES, P.h * BLD_RES);
+    if (A && A.parts.includes(k)) {
+      // Rise: the piece slides up out of the line at its foot (it is cut off below it), with a small shudder as it lands
+      const t = Math.min(1, A.t / BLD_RISE_T), e = 1 - Math.pow(1 - t, 3), shake = t < 1 ? Math.sin(t * 34) * 5 * Math.max(0, t - 0.6) * (1 - t) * 6 : 0;
+      if (e <= 0) continue;
+      x.save(); x.beginPath(); x.rect((P.x - 20) * BLD_RES, 0, (P.w + 40) * BLD_RES, (P.y + P.h) * BLD_RES); x.clip();
+      x.drawImage(P.img, (P.x + shake) * BLD_RES, (P.y + P.h * (1 - e)) * BLD_RES, P.w * BLD_RES, P.h * BLD_RES); x.restore();
+    } else x.drawImage(P.img, P.x * BLD_RES, P.y * BLD_RES, P.w * BLD_RES, P.h * BLD_RES);
   }
-  x.globalAlpha = 1; r.tex.needsUpdate = true;
-  r.alphaData = x.getImageData(0, 0, x.canvas.width, x.canvas.height).data;
+  r.tex.needsUpdate = true;
+  if (!A) r.alphaData = x.getImageData(0, 0, x.canvas.width, x.canvas.height).data; // for taps; read once it has settled
+}
+function updateBuildingRise(r, dt) { // called every frame while a piece is coming in
+  r.arrive.t += dt; const done = r.arrive.t >= BLD_RISE_T;
+  if (done) r.arrive = null; drawBuilding(r);
 }
 function riseFromFusion(f) {
   const start = Math.random() < 0.5 ? "ruin1" : "ruin2", other = start === "ruin1" ? "ruin2" : "ruin1", P = BLD_PARTS[start];
@@ -1017,9 +1031,9 @@ function riseFromFusion(f) {
   const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide }));
   const g = new THREE.Group(); g.add(m);
   const [px, pz] = openSpot(f.x, f.z, P.w * s * 0.35 + CFG.buildings.gapLarge, BLD_BASE * s, P.w * s);
-  const r = placeRuin({ g, r: P.w * s * 0.35 }, px, pz, { yaw: 0, tilt: false, sink: 0, kind: "collage" });
+  const r = placeRuin({ g, r: P.w * s * 0.35 }, px, pz, { yaw: 0, tilt: false, sink: 0, rise: 0, kind: "collage" }); // it stands at the ground; its picture rises
   Object.assign(r, { crackable: true, cracks: 0, pic: m, tex, ctx: cv.getContext("2d"), parts: new Set([start]), queue: [[other], ["tower", "shop"], ["floor"]],
-    x0, y0, W, H, height: P.h * s });
+    x0, y0, W, H, height: P.h * s, arrive: { parts: [start], t: 0 } });
   r.uvOf = (lx, ly) => [(lx - x0) / W, (ly - y0) / H];
   r.solidAt = (u, v) => { const d = r.alphaData; if (!d) return true; const cw = cv.width, ch = cv.height, i = (Math.min(ch - 1, Math.max(0, Math.floor((1 - v) * ch))) * cw + Math.min(cw - 1, Math.max(0, Math.floor(u * cw)))) * 4; return d[i + 3] > 127; };
   drawBuilding(r);
@@ -1062,9 +1076,7 @@ function crackBuilding(r, point) {
   const next = r.queue.shift();
   if (next) later(0.5, () => {
     if (!ruins.includes(r)) return;
-    next.forEach(k => r.parts.add(k));
-    [0.25, 0.5, 0.75].forEach((a, i) => later(0.08 * i, () => drawBuilding(r, { parts: next, a })));
-    later(0.24, () => drawBuilding(r)); rumble();
+    next.forEach(k => r.parts.add(k)); r.arrive = { parts: next, t: 0 }; drawBuilding(r); rumble(); // it rises out of the ground behind the others
   });
   if (!playSound(CRACK, 0.5)) pop(); buzz([14, 30, 20]);
 }
@@ -1351,6 +1363,7 @@ function updateStains(dt) {
       if (r.going >= 1) { disposeRuin(r); ruins.splice(i, 1); for (let k = ruins.length - 1; k >= 0; k--) if (ruins[k].parent === r) ruins.splice(k, 1); i = Math.min(i, ruins.length); }
       continue;
     }
+    if (r.arrive) updateBuildingRise(r, dt);
     if (r.t < 1) {
       r.t = Math.min(1, r.t + dt / 1.3);
       const e = 1 - Math.pow(1 - r.t, 3);

@@ -5,10 +5,9 @@
 //   1. start -> cells        after the first split the ground turns from black to white and the torn edge goes
 //   2. cells -> jali         once the card is full: the D chime, the fade to grey, and the moment presses go to the jali
 //   3. cells -> environment  the green page coming through, and the old pull-back to the map (SWITCHED OFF)
-//   4. jali -> environment   presses 9 and 10: the camera moves on right past the jali to a green-washed jali strip and
-//                            a carved pillar (no cells past it), then a green tile of the olive paper flush against the
-//                            pillar. Taps then split the green tiles; the second split takes the camera on until the
-//                            pillar is gone, zooms out, then plays the D chime and turns the black white. The tiles fill
+//   4. jali -> environment   press 10, after the rock: a green tile of the olive paper flush against the rock's end, on
+//                            the black. Taps then split the green tiles; the second split takes the camera on until the
+//                            rock is gone, zooms out, then plays the D chime and turns the black white. The tiles fill
 //                            one row of four; then a person walks in and taps pop people in two; each creature that
 //                            dies lays a green tile and a person steps out of it (4b)
 // ====================================================================================================================
@@ -59,40 +58,44 @@ function updatePullBack(dt, u, cs, cx, cy) {
 }
 
 // ---------- 4. jali -> environment ----------
-// Once the jali is done (press 8), the camera moves on right. Press 9: a strip of green-washed jali and a carved pillar,
-// straight on from the last jali piece. Past the pillar: black. Press 10: a tile of the olive
-// painted paper (the environment's ground), flush against the pillar, low down. From then on a tap splits a green tile:
-// a new tile, cut from another part of the paper, slides out flush beside it. The second split sends the camera on right until
-// the pillar is out of view, then it zooms out, and then the D chime plays and the black turns white.
-const ENV_STRIP_TEX = new THREE.TextureLoader().load("jalistrip.png"), ENV_COLUMN_TEX = new THREE.TextureLoader().load("column.png"), ENV_OLIVE_TEX = new THREE.TextureLoader().load("green.jpg");
-const ENV_PRESSES = 10; // the last press of the transition; after this, presses split the green tiles
+// Once the jali is done (press 11, the rock), the next press lays a tile of the olive painted paper (the environment's
+// ground), low down and flush against the rock's end, on the black. From then on a tap splits a green tile: a new tile,
+// cut from another part of the paper, slides out flush beside it. The second split sends the camera on right until the
+// rock is out of view, then it zooms out, and then the D chime plays and the black turns white.
+// (The green-washed jali strip and the carved pillar that used to stand between are gone.)
+const ENV_OLIVE_TEX = new THREE.TextureLoader().load("green.jpg");
+// for now the piece ends at the rock: presses after it do nothing, and the green tiles (and the environment after them)
+// don't come. Set this to true to bring them back
+const ENV_AFTER_ROCK = false;
+const ENV_PRESSES = JALI_PRESSES + 1; // the last press of the transition; after this, presses split the green tiles
 const TILE_MAX = 24, TILE_GAP = 0; // the most green tiles, and the gap between them (in card heights): flush
 // the green tiles fill one row of four first. Once all four are down (and the white has come), a person walks in onto
 // them, and from then on taps pop the people in two, as in the environment. After that the green only grows where
 // creatures die: each death lays a tile there, and a person steps out of it (tileFromDeath)
 const BLOCK_COLS = 4, BLOCK_ROWS = [0], BLOCK_N = BLOCK_COLS * BLOCK_ROWS.length;
 const inBlock = (i, j) => i >= 0 && i < BLOCK_COLS && BLOCK_ROWS.includes(j);
-// the strip and the pillar each as tall as the card, at their own proportions; a green tile 0.56 card-heights wide and
+// a green tile 0.56 card-heights wide and
 // 0.4 high. In card widths, measured from the jali card's left edge (the last jali piece ends near 2.76), so they come
-// out the same on a wide card or a tall phone one
-function envStrips() { const Ac = FR.w / FR.h; return { x0: 2.66, gw: 223 / 1305 / Ac, cw: 200 / 1315 / Ac, ow: 0.56 / Ac }; }
-const pillarEdge = () => { const s = envStrips(); return s.x0 + s.gw + s.cw; };
-// where the camera goes: press 9 brings the strip and pillar in with a little black beyond them; press 10 the green tile;
-// after the second split, on until the pillar has gone off the left (and further as it zooms out, so it stays gone)
+// out the same on a wide card or a tall phone one. They start just past the rock (for now: they come after it)
+function envStrips() { const Ac = FR.w / FR.h; return { x0: rockEnd() - 0.004, gw: 0, cw: 0, ow: 0.56 / Ac }; } // x0: the rock's end (no strip or pillar now: gw, cw 0)
+const pillarEdge = () => /* now the rock's end */ { const s = envStrips(); return s.x0 + s.gw + s.cw; };
+// where the camera goes: press 10 the rock's end and the green tile; after the second split, on until the rock has gone
+// off the left (and further as it zooms out, so it stays gone)
 function envPanTarget(stage) {
   const s = envStrips();
   if (micro.envMoveOn) return pillarEdge() + 0.03 - 0.5 + 0.5 / (micro.envZ || 1);
-  return stage <= 9 ? s.x0 + s.gw + s.cw - 0.85 : s.x0 + s.gw + s.cw + s.ow - 0.92;
+  return s.x0 + s.ow - 0.92; // the rock's end and the first tile in view
 }
 function resetJaliToEnvironment() { micro.envWhite = 0; micro.envChimed = false; micro.tiles = []; micro.envSplits = 0; micro.envMoveOn = false; micro.envZoomGo = false; micro.envZ = 1; micro.envCy = 0.5; micro.envPeople = false; }
 function jaliToEnvironmentPress(ev) {
+  if (!ENV_AFTER_ROCK) return;
   if ((micro.jStage || 0) >= ENV_PRESSES) return greenTileTap(ev);
   micro.jStage = (micro.jStage || 0) + 1;
   if (micro.jStage === ENV_PRESSES) micro.tiles = [{ i: 0, j: 0, fi: 0, fj: 0, t: 1, u0: 0, v0: 0, sc: 1 }]; // the first green tile
   else if (!playSound(CRACK, 0.6)) pop();
   buzz([12, 40, 20]);
 }
-// a green tile's place: tiles sit on a grid running right (i) and up or down (j) from the first one, beside the pillar
+// a green tile's place: tiles sit on a grid running right (i) and up or down (j) from the first one, against the rock
 function tileSlot(i, j) { const s = envStrips(); return { x: pillarEdge() + i * s.ow, y: 0.6 + j * 0.4 }; }
 // a tap on the screen, in the same units as the tiles (card widths across, card heights down)
 function envWorld(cx, cy) { const Z = micro.envZ || 1; return { x: (micro.jPan || 0) + 0.5 + ((cx - FR.x) / FR.w - 0.5) / Z, y: (micro.envCy || 0.5) + ((cy - FR.y) / FR.h - 0.5) / Z }; }
@@ -102,7 +105,7 @@ function greenTileTap(ev) {
   const w = envWorld(ev.clientX, ev.clientY), s = envStrips();
   let tile = null, bd = 1e9;
   for (const t of T) { const p = tileSlot(t.i, t.j), d = Math.hypot((p.x + s.ow / 2 - w.x) * FR.w / FR.h, p.y + 0.2 - w.y); if (d < bd) { bd = d; tile = t; } }
-  // where the new one goes: the nearest free place in the row of four (never back into the pillar)
+  // where the new one goes: the nearest free place in the row of four (never back into the rock)
   if (T.length >= BLOCK_N) return;
   const taken = new Set(T.map(t => t.i + "," + t.j)); let spot = null, sd = 1e9;
   for (let i = 0; i < BLOCK_COLS; i++) for (const j of BLOCK_ROWS) if (!taken.has(i + "," + j)) {
@@ -141,6 +144,11 @@ function framePeopleOnTiles() {
   // their ground: the green
   const bx = tilesBox(), [sx0, sy0] = tileToScreen(bx.x0, bx.y0), [sx1, sy1] = tileToScreen(bx.x1, bx.y1), p0 = groundAt(sx0, sy0), p1 = groundAt(sx1, sy1);
   if (p0 && p1) Object.assign(BOUNDS, { x0: Math.min(p0.x, p1.x), x1: Math.max(p0.x, p1.x), z0: Math.min(p0.z, p1.z), z1: Math.max(p0.z, p1.z) });
+  // the sun follows the green, so the creatures' shadows are worked out wherever they are on it
+  const cx = (BOUNDS.x0 + BOUNDS.x1) / 2, cz = (BOUNDS.z0 + BOUNDS.z1) / 2, half = Math.max(BOUNDS.x1 - BOUNDS.x0, BOUNDS.z1 - BOUNDS.z0) / 2 + 14;
+  sun.target.position.set(cx, 0, cz); sun.position.set(cx - 9, 22, cz - 4); sun.target.updateMatrixWorld();
+  const sc = sun.shadow.camera; if (Math.abs(sc.right - half) > 0.5) { Object.assign(sc, { left: -half, right: half, top: half, bottom: -half }); sc.updateProjectionMatrix(); }
+  shadowCatcher.position.set(cx, 0.004, cz); shadowCatcher.scale.set(half * 2.4, half * 2.4, 1);
 }
 function startPeopleOnTiles() {
   micro.envPeople = true; framePeopleOnTiles();
@@ -181,14 +189,14 @@ function updatePeopleOnTiles(dt) {
 // drawn over the tiles: the screen shader first, then the paper world without its ground, kept inside the card
 function renderPeopleOnTiles() {
   renderer.setRenderTarget(null); renderer.autoClear = true; renderer.clear(); layerMicro();
-  const bg = scene.background; scene.background = null; floor.visible = false;
+  const bg = scene.background; scene.background = null; floor.visible = false; shadowCatcher.visible = true; // creature shadows on the tiles
   renderer.autoClear = false; renderer.clearDepth();
   renderer.setScissorTest(true); renderer.setScissor(FR.x, innerHeight - FR.y - FR.h, FR.w, FR.h);
   renderer.render(scene, camera);
-  renderer.setScissorTest(false); renderer.autoClear = true; floor.visible = true; scene.background = bg;
+  renderer.setScissorTest(false); renderer.autoClear = true; floor.visible = true; shadowCatcher.visible = false; scene.background = bg;
 }
 
-// how far out the view has to be to keep every tile in sight, the pillar just off the left
+// how far out the view has to be to keep every tile in sight, the rock just off the left
 function envFitZoom() {
   const s = envStrips(); let x1 = -1e9, y0 = 1e9, y1 = -1e9;
   for (const t of micro.tiles) { const p = tileSlot(t.i, t.j); x1 = Math.max(x1, p.x + s.ow); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y + 0.4); }
@@ -200,7 +208,7 @@ function updateJaliToEnvironment(dt, u) {
   const s = envStrips(); u.jStrip.value.set(s.gw, s.cw, s.ow, s.x0);
   const T = micro.tiles || [];
   if (micro.envMoveOn) {
-    if (!micro.envZoomGo && Math.abs(panTarget() - (micro.jPan || 0)) < 0.03) micro.envZoomGo = true;   // the pillar is out of view
+    if (!micro.envZoomGo && Math.abs(panTarget() - (micro.jPan || 0)) < 0.03) micro.envZoomGo = true;   // the rock is out of view
     if (micro.envZoomGo) {
       const Zt = envFitZoom(); let y0 = 1e9, y1 = -1e9;
       for (const t of T) { const p = tileSlot(t.i, t.j); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y + 0.4); }
@@ -231,8 +239,6 @@ const TRANSITION_UNIFORMS = {
   gray: { value: 0 },
   rev: { value: new THREE.Vector4() },
   dissolve: { value: -1 },
-  envStrip: { value: ENV_STRIP_TEX },
-  envColumn: { value: ENV_COLUMN_TEX },
   envOlive: { value: ENV_OLIVE_TEX },
   jStrip: { value: new THREE.Vector4() },
   envWhite: { value: 0 },
@@ -266,9 +272,8 @@ const GLSL_TO_ENV_REVEAL = `      if (mode == 1 && rev.w > 0.0) {
         c = mix(mapAt(sp) * (0.96 + 0.08 * n2), c, b);
       }`;
 const GLSL_CELLS_TO_JALI_GREY = `      if (!(jaliT > 0.0 && jStage > 3.5)) c = mix(c, mix(vec3(0.78), vec3(0.075), cellIn), gray); // at the end: the space between the cells fades to the jali's stone, the cells to the dark of its openings`;
-const GLSL_JALI_TO_ENV = `      if (jaliT > 0.0 && jStage > 8.5) {
-        // press 9: the green-washed jali strip and the carved pillar, straight on from the last jali piece; past the pillar
-        // no more cells, only black (white later). Press 10 on: the green tiles, the first flush against the pillar, low
+const GLSL_JALI_TO_ENV = `      if (jaliT > 0.0 && jStage > ${JALI_PRESSES}.5) {
+        // past the rock's end: black (white later). Press 10 on: the green tiles, the first flush against the rock, low
         // down. Straight edges, as if cut with a blade. envView: how far out the camera has zoomed, and where it looks up
         // or down
         float Ac = win.z / win.w, Z = envView.x;
@@ -276,11 +281,9 @@ const GLSL_JALI_TO_ENV = `      if (jaliT > 0.0 && jStage > 8.5) {
         float inCard = step(0.0, q.x) * step(q.x, 1.0) * step(0.0, q.y) * step(q.y, 1.0);
         float wx = jPan + 0.5 + (q.x - 0.5) / Z;                                // in card widths from the jali card's left edge
         float wy = envView.y + (q.y - 0.5) / Z;                                 // in card heights from the card's top
-        float x0 = jStrip.w, gw = jStrip.x, cw = jStrip.y, ow = jStrip.z, xe = x0 + gw + cw;   // xe: the pillar's right edge
+        float x0 = jStrip.w, gw = jStrip.x, cw = jStrip.y, ow = jStrip.z, xe = x0 + gw + cw;   // xe: the rock's end (gw, cw are 0 now)
         if (wx >= xe) c = mix(c, mix(vec3(0.02, 0.016, 0.015), vec3(0.985, 0.98, 0.97), envWhite), inCard);
         float inH = step(0.0, wy) * step(wy, 1.0);
-        if (wx >= x0 && wx < x0 + gw) { vec4 t = texture2D(envStrip, vec2((wx - x0) / gw, 1.0 - wy)); c = mix(c, t.rgb, t.a * inCard * inH); }
-        if (wx >= x0 + gw && wx < xe) { vec4 t = texture2D(envColumn, vec2((wx - x0 - gw) / cw, 1.0 - wy)); c = mix(c, t.rgb, t.a * inCard * inH); }
         for (int i = 0; i < ${TILE_MAX}; i++) {
           if (float(i) >= envTileN) break;
           vec4 r = envTiles[i], tu = envTileUV[i];                              // r: the tile (x, y, w, h); tu: its patch of the paper
